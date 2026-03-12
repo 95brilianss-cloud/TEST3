@@ -1,13 +1,24 @@
 {
   "name": "Turbine Logsheet Pro",
   "short_name": "Turbine Log",
+  "start_url": "./",
+  "display": "standalone",
+  "orientation": "portrait",
   "icons": [
     {
-      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg ' viewBox='0 0 192 192'%3E%3Ccircle cx='96' cy='96' r='88' fill='%230f172a'/%3E%3Cpath d='M96 40 L104 80 L96 90 L88 80 Z' fill='%2306b6d4'/%3E...",
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Ccircle cx='96' cy='96' r='88' fill='%230f172a'/%3E%3Cpath d='M96 40 L104 80 L96 90 L88 80 Z' fill='%2306b6d4'/%3E%3Cpath d='M138 64 L112 82 L108 76 L118 68 Z' fill='%2306b6d4'/%3E%3Cpath d='M138 128 L112 110 L108 116 L118 124 Z' fill='%2306b6d4'/%3E%3Cpath d='M96 152 L104 112 L96 102 L88 112 Z' fill='%2306b6d4'/%3E%3Cpath d='M54 128 L80 110 L84 116 L74 124 Z' fill='%2306b6d4'/%3E%3Cpath d='M54 64 L80 82 L84 76 L74 68 Z' fill='%2306b6d4'/%3E%3Ccircle cx='96' cy='96' r='8' fill='%23f8fafc'/%3E%3C/svg%3E",
       "sizes": "192x192",
-      "type": "image/svg+xml"
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Ccircle cx='256' cy='256' r='240' fill='%230f172a'/%3E%3Cpath d='M256 100 L270 180 L256 200 L242 180 Z' fill='%2306b6d4'/%3E%3Cpath d='M368 170 L310 205 L300 190 L320 175 Z' fill='%2306b6d4'/%3E%3Cpath d='M368 342 L310 307 L300 322 L320 337 Z' fill='%2306b6d4'/%3E%3Cpath d='M256 412 L270 332 L256 312 L242 332 Z' fill='%2306b6d4'/%3E%3Cpath d='M144 342 L202 307 L212 322 L192 337 Z' fill='%2306b6d4'/%3E%3Cpath d='M144 170 L202 205 L212 190 L192 175 Z' fill='%2306b6d4'/%3E%3Ccircle cx='256' cy='256' r='20' fill='%23f8fafc'/%3E%3C/svg%3E",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
     }
   ],
   "theme_color": "#0f172a",
-  "background_color": "#0f172a"
+  "background_color": "#0f172a",
+  "scope": "./"
 }
