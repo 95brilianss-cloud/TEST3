@@ -1,7 +1,7 @@
 // ============================================
 // TURBINE LOGSHEET PRO - VERSION CONTROL
 // ============================================
-const APP_VERSION = '1.0.2';
+const APP_VERSION = '1.0.3'; // Update: Auto-detect select input for pumps/status
 
 // Service Worker Registration dengan Update Handling
 if ('serviceWorker' in navigator) {
@@ -27,6 +27,39 @@ if ('serviceWorker' in navigator) {
             }
         });
     });
+}
+
+// ============================================
+// INPUT TYPE CONFIGURATION
+// ============================================
+// Deteksi otomatis tipe input berdasarkan pattern di label
+const INPUT_TYPES = {
+    PUMP_STATUS: {
+        patterns: ['(A/B)', '(ON/OFF)', '(On/Off)', '(Running/Stop)', '(Remote/Running/Stop)'],
+        options: {
+            '(A/B)': ['A', 'B'],
+            '(ON/OFF)': ['ON', 'OFF'],
+            '(On/Off)': ['On', 'Off'],
+            '(Running/Stop)': ['Running', 'Stop'],
+            '(Remote/Running/Stop)': ['Remote', 'Running', 'Stop']
+        }
+    }
+};
+
+// Function untuk detect tipe input
+function detectInputType(label) {
+    for (const [type, config] of Object.entries(INPUT_TYPES)) {
+        for (const pattern of config.patterns) {
+            if (label.includes(pattern)) {
+                return {
+                    type: 'select',
+                    options: config.options[pattern],
+                    pattern: pattern
+                };
+            }
+        }
+    }
+    return { type: 'text', options: null, pattern: null };
 }
 
 // Database Parameter Configuration
@@ -170,6 +203,7 @@ let currentInput = JSON.parse(localStorage.getItem('draft_turbine')) || {};
 let activeArea = "";
 let activeIdx = 0;
 let totalParams = 0;
+let currentInputType = 'text'; // Track tipe input saat ini
 
 // Initialization
 window.addEventListener('DOMContentLoaded', () => {
@@ -387,12 +421,15 @@ function renderProgressDots() {
 
 function jumpToStep(index) {
     // Save current first if has value
-    const currentVal = document.getElementById('valInput').value.trim();
-    if (currentVal) {
-        const fullLabel = AREAS[activeArea][activeIdx];
-        if (!currentInput[activeArea]) currentInput[activeArea] = {};
-        currentInput[activeArea][fullLabel] = currentVal;
-        localStorage.setItem('draft_turbine', JSON.stringify(currentInput));
+    const input = document.getElementById('valInput');
+    if (input) {
+        const currentVal = input.value.trim();
+        if (currentVal) {
+            const fullLabel = AREAS[activeArea][activeIdx];
+            if (!currentInput[activeArea]) currentInput[activeArea] = {};
+            currentInput[activeArea][fullLabel] = currentVal;
+            localStorage.setItem('draft_turbine', JSON.stringify(currentInput));
+        }
     }
     
     activeIdx = index;
@@ -410,24 +447,57 @@ function getParamName(label) {
     return label.split(' (')[0];
 }
 
-// Step Management
+// Step Management dengan Dynamic Input
 function showStep() {
     const fullLabel = AREAS[activeArea][activeIdx];
     const total = AREAS[activeArea].length;
+    const inputType = detectInputType(fullLabel);
+    currentInputType = inputType.type; // Simpan untuk digunakan di saveStep
     
     document.getElementById('stepInfo').textContent = `Step ${activeIdx + 1}/${total}`;
     document.getElementById('areaProgress').textContent = `${activeIdx + 1}/${total}`;
     document.getElementById('labelInput').textContent = getParamName(fullLabel);
-    document.getElementById('unitDisplay').textContent = getUnit(fullLabel) || '--';
     document.getElementById('lastTimeLabel').textContent = lastData._lastTime || '--:--';
     document.getElementById('prevValDisplay').textContent = lastData[fullLabel] || '--';
     
-    // Set current value if exists
+    // Render input field berdasarkan tipe
+    const inputContainer = document.getElementById('inputFieldContainer');
+    const unitDisplay = document.getElementById('unitDisplay');
     const currentValue = (currentInput[activeArea] && currentInput[activeArea][fullLabel]) || '';
-    document.getElementById('valInput').value = currentValue;
     
-    // Focus input
-    setTimeout(() => document.getElementById('valInput').focus(), 100);
+    if (inputType.type === 'select') {
+        // Buat dropdown untuk pompa/status
+        let optionsHtml = `<option value="" disabled ${!currentValue ? 'selected' : ''}>Pilih Status...</option>`;
+        inputType.options.forEach(opt => {
+            const selected = currentValue === opt ? 'selected' : '';
+            optionsHtml += `<option value="${opt}" ${selected}>${opt}</option>`;
+        });
+        
+        inputContainer.innerHTML = `
+            <div class="select-wrapper">
+                <select id="valInput" class="status-select">
+                    ${optionsHtml}
+                </select>
+                <div class="select-arrow">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M6 9l6 6 6-6"/>
+                    </svg>
+                </div>
+            </div>
+        `;
+        
+        // Hide unit display untuk select
+        unitDisplay.style.display = 'none';
+        document.getElementById('mainInputWrapper').classList.add('has-select');
+    } else {
+        // Input text normal untuk nilai numerik
+        inputContainer.innerHTML = `
+            <input type="text" id="valInput" inputmode="decimal" placeholder="0.00" value="${currentValue}" autocomplete="off">
+        `;
+        unitDisplay.textContent = getUnit(fullLabel) || '--';
+        unitDisplay.style.display = 'flex';
+        document.getElementById('mainInputWrapper').classList.remove('has-select');
+    }
     
     // Update progress dots
     const dots = document.querySelectorAll('.progress-dot');
@@ -438,10 +508,27 @@ function showStep() {
             dot.classList.add('filled');
         }
     });
+    
+    // Focus/select logic
+    setTimeout(() => {
+        const input = document.getElementById('valInput');
+        if (input) {
+            if (inputType.type === 'select') {
+                // Untuk select, tidak perlu focus agar tidak auto buka di mobile
+                // tapi bisa jika mau: input.focus();
+            } else {
+                input.focus();
+                input.select();
+            }
+        }
+    }, 100);
 }
 
 function saveStep() {
-    const val = document.getElementById('valInput').value.trim();
+    const input = document.getElementById('valInput');
+    if (!input) return;
+    
+    const val = input.value.trim();
     const fullLabel = AREAS[activeArea][activeIdx];
     
     if (val) {
@@ -509,7 +596,10 @@ document.addEventListener('keydown', (e) => {
     
     if (e.key === 'Enter') {
         e.preventDefault();
-        saveStep();
+        // Jika select dropdown terbuka, Enter akan memilih, jadi tidak perlu saveStep lagi
+        if (currentInputType !== 'select') {
+            saveStep();
+        }
     } else if (e.key === 'Escape') {
         navigateTo('areaListScreen');
     }
