@@ -18,8 +18,9 @@ const AREAS = {
     "Chemical Dosing": ["30-TK-6205 LI-6204 (%)", "30-TK-6205 30-P-6205 (A/B)", "30-TK-6205 Disch (kg/cm2)", "30-TK-6205 Stroke (%)", "30-TK-6206 LI-6206 (%)", "30-TK-6206 30-P-6206 (A/B)", "30-TK-6206 Disch (kg/cm2)", "30-TK-6206 Stroke (%)", "30-TK-6207 LI-6208 (%)", "30-TK-6207 30-P-6207 (A/B)", "30-TK-6207 Disch (kg/cm2)", "30-TK-6207 Stroke (%)"]
 };
 
-const DEFAULT_URL = "https://script.google.com/macros/s/AKfycbx5ldkn8uUOplo2F2rKD9OOjARjIZCRIcPYhu_tK7UCWsR1DlnVFShQSuGoxCkW1t4i/exec";
-let GAS_URL = localStorage.getItem('gas_url_custom') || DEFAULT_URL;
+// URL Google Apps Script (hardcoded, tidak bisa diubah dari UI)
+const GAS_URL = "https://script.google.com/macros/s/AKfycbx5ldkn8uUOplo2F2rKD9OOjARjIZCRIcPYhu_tK7UCWsR1DlnVFShQSuGoxCkW1t4i/exec";
+
 let lastData = {}, currentInput = JSON.parse(localStorage.getItem('draft_turbine')) || {}, activeArea = "", activeIdx = 0;
 
 window.onload = () => { renderMenu(); };
@@ -109,15 +110,4 @@ async function sendToSheet() {
         showCustomAlert("Gagal mengirim! Periksa koneksi internet Anda."); 
     }
     document.getElementById('loader').style.display = 'none';
-}
-
-function openSettings() { navigateTo('settingsScreen'); document.getElementById('gasUrlInput').value = GAS_URL; }
-function saveSettings() {
-    const url = document.getElementById('gasUrlInput').value.trim();
-    if(url) { 
-        localStorage.setItem('gas_url_custom', url); 
-        GAS_URL = url; 
-        showCustomAlert("URL Berhasil diperbarui!"); 
-        navigateTo('homeScreen'); 
-    }
 }
