@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="theme-color" content="#f8fafc">
     <title>Turbine Logsheet Pro</title>
-    <link rel="stylesheet" href="style.css?v=10">
+    <link rel="stylesheet" href="style.css?v=9">
     <link rel="manifest" href="manifest.json">
     <link rel="icon" href="data:,">
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/5971/5971591.png">
@@ -37,10 +37,6 @@
         <div class="area-item" onclick="navigateTo('areaListScreen')">
             <div><b>Mulai Logsheet</b><br><small>Input data operasional</small></div>
             <div>❯</div>
-        </div>
-        <div class="area-item" onclick="openSettings()">
-            <div><b>Pengaturan</b><br><small>Konfigurasi URL</small></div>
-            <div>🛠️</div>
         </div>
     </div>
 
@@ -77,14 +73,6 @@
             <button class="btn btn-primary" onclick="saveStep()">SIMPAN & LANJUT ➔</button>
             <button class="btn btn-outline" style="margin-top: 12px;" onclick="goBack()">← KEMBALI</button>
         </div>
-    </div>
-
-    <div id="settingsScreen" class="screen">
-        <h2>Configuration</h2>
-        <p style="color: var(--text-muted); font-size: 14px;">Masukkan URL Deployment Web App Google Script Anda:</p>
-        <input type="text" id="gasUrlInput" class="main-input" placeholder="https://script.google.com/macros/s/.../exec">
-        <button class="btn btn-primary" style="margin-top:20px;" onclick="saveSettings()">Simpan Konfigurasi</button>
-        <button class="btn btn-outline" style="margin-top:10px;" onclick="navigateTo('homeScreen')">Kembali</button>
     </div>
 </div>
 
