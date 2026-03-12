@@ -1,188 +1,666 @@
-/* --- Root Variables --- */
+/* ============================================
+   ELECTRICAL PROFESSIONAL THEME
+   Modern Electrician/Engineering Dashboard
+   ============================================ */
+
+/* --- Root Variables: Electrical Theme --- */
 :root {
-    --bg-color: #f8fafc;
+    /* Primary Colors - Electric Blue Theme */
+    --electric-blue: #0066cc;
+    --electric-blue-dark: #004d99;
+    --electric-blue-light: #e6f2ff;
+    --electric-cyan: #00bfff;
+    
+    /* Accent Colors - Warning/Energy */
+    --energy-yellow: #ffc107;
+    --energy-yellow-dark: #ff9800;
+    --warning-orange: #ff5722;
+    
+    /* Neutral Professional */
+    --slate-900: #0f172a;
+    --slate-800: #1e293b;
+    --slate-700: #334155;
+    --slate-600: #475569;
+    --slate-500: #64748b;
+    --slate-400: #94a3b8;
+    --slate-300: #cbd5e1;
+    --slate-200: #e2e8f0;
+    --slate-100: #f1f5f9;
+    --slate-50: #f8fafc;
+    
+    /* Semantic Colors */
+    --bg-color: var(--slate-50);
     --card-bg: #ffffff;
-    --primary: #2563eb;
-    --primary-dark: #1d4ed8;
-    --text-main: #1e293b;
-    --text-muted: #64748b;
-    --border: #e2e8f0;
-    --success: #10b981;
+    --primary: var(--electric-blue);
+    --primary-dark: var(--electric-blue-dark);
+    --primary-light: var(--electric-blue-light);
+    --accent: var(--energy-yellow);
+    --text-main: var(--slate-800);
+    --text-secondary: var(--slate-600);
+    --text-muted: var(--slate-500);
+    --border: var(--slate-200);
+    --success: #059669;
+    --danger: #dc2626;
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
 }
 
-/* --- Layout Dasar --- */
-body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    background-color: var(--bg-color);
-    color: var(--text-main);
+/* --- Base Layout --- */
+* {
     margin: 0;
     padding: 0;
+    box-sizing: border-box;
+}
+
+html {
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: linear-gradient(135deg, var(--slate-50) 0%, #ffffff 100%);
+    color: var(--text-main);
+    line-height: 1.6;
+    min-height: 100vh;
     -webkit-tap-highlight-color: transparent;
-    line-height: 1.5;
 }
 
 .app-container {
     width: 100%;
-    max-width: 500px;
+    max-width: 480px;
     margin: 0 auto;
     min-height: 100vh;
-    padding: 20px;
-    box-sizing: border-box;
+    padding: 24px;
+    position: relative;
 }
 
 /* --- Screen Management --- */
-.screen { display: none; }
-.screen.active { display: block; animation: fadeIn 0.3s ease-out; }
-
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
+.screen { 
+    display: none; 
+    opacity: 0;
 }
 
-/* --- Components: Header & Badges --- */
+.screen.active { 
+    display: block; 
+    animation: fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes fadeInUp {
+    from { 
+        opacity: 0; 
+        transform: translateY(20px) scale(0.98); 
+    }
+    to { 
+        opacity: 1; 
+        transform: translateY(0) scale(1); 
+    }
+}
+
+/* --- Professional Header --- */
 .header-nav { 
     display: flex; 
     align-items: center; 
     justify-content: space-between; 
-    margin-bottom: 25px; 
+    margin-bottom: 32px;
+    padding-bottom: 20px;
+    border-bottom: 2px solid var(--slate-100);
 }
 
+.header-title {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--slate-900);
+    letter-spacing: -0.025em;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.header-title::before {
+    content: "⚡";
+    font-size: 1.75rem;
+    filter: drop-shadow(0 0 8px rgba(0, 191, 255, 0.5));
+}
+
+/* --- Status Badges --- */
 .badge {
-    background: #eff6ff;
+    background: linear-gradient(135deg, var(--primary-light) 0%, #ffffff 100%);
     color: var(--primary);
-    padding: 6px 14px;
-    border-radius: 20px;
+    padding: 8px 16px;
+    border-radius: 24px;
     font-weight: 700;
-    font-size: 13px;
-    border: 1px solid #dbeafe;
+    font-size: 0.875rem;
+    border: 1px solid rgba(0, 102, 204, 0.2);
+    box-shadow: var(--shadow-sm);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    position: relative;
+    overflow: hidden;
 }
 
-/* --- Components: Area Cards (Main Menu) --- */
+.badge::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+    animation: shimmer 3s infinite;
+}
+
+@keyframes shimmer {
+    0% { left: -100%; }
+    50%, 100% { left: 100%; }
+}
+
+.badge-live {
+    background: linear-gradient(135deg, #fef3c7 0%, #ffffff 100%);
+    color: var(--energy-yellow-dark);
+    border-color: rgba(255, 193, 7, 0.3);
+}
+
+.badge-live::after {
+    content: "";
+    width: 8px;
+    height: 8px;
+    background: var(--energy-yellow);
+    border-radius: 50%;
+    box-shadow: 0 0 0 2px rgba(255, 193, 7, 0.3);
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.7; transform: scale(1.1); }
+}
+
+/* --- Electrical Area Cards --- */
+.area-grid {
+    display: grid;
+    gap: 16px;
+    margin-top: 24px;
+}
+
 .area-item {
     background: var(--card-bg);
     border: 1px solid var(--border);
-    padding: 18px;
+    padding: 20px;
     border-radius: 16px;
-    margin-bottom: 12px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+    box-shadow: var(--shadow-sm);
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+.area-item::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: linear-gradient(180deg, var(--electric-cyan) 0%, var(--primary) 100%);
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.area-item:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+    border-color: var(--electric-cyan);
+}
+
+.area-item:hover::before {
+    opacity: 1;
 }
 
 .area-item:active { 
-    transform: scale(0.98);
-    background: #f1f5f9; 
+    transform: translateY(0) scale(0.98);
+    box-shadow: var(--shadow-md);
 }
 
-/* --- Components: Input Container (White Card style) --- */
+.area-icon {
+    width: 48px;
+    height: 48px;
+    background: linear-gradient(135deg, var(--primary-light) 0%, #ffffff 100%);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    border: 1px solid rgba(0, 102, 204, 0.1);
+    transition: transform 0.3s;
+}
+
+.area-item:hover .area-icon {
+    transform: scale(1.1) rotate(5deg);
+}
+
+.area-content {
+    flex: 1;
+    margin-left: 16px;
+}
+
+.area-title {
+    font-weight: 700;
+    font-size: 1rem;
+    color: var(--slate-800);
+    margin-bottom: 4px;
+}
+
+.area-subtitle {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.area-arrow {
+    color: var(--slate-400);
+    transition: all 0.3s;
+}
+
+.area-item:hover .area-arrow {
+    color: var(--primary);
+    transform: translateX(4px);
+}
+
+/* --- Input Container: Professional Card --- */
 .input-container {
     background: var(--card-bg);
-    padding: 24px;
-    border-radius: 20px;
+    padding: 28px;
+    border-radius: 24px;
     border: 1px solid var(--border);
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);
-    margin-top: 10px;
+    box-shadow: var(--shadow-xl);
+    margin-top: 16px;
+    position: relative;
 }
 
-/* --- Input Fields & Unit Display --- */
+.input-container::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, var(--electric-cyan) 0%, var(--primary) 50%, var(--energy-yellow) 100%);
+    border-radius: 24px 24px 0 0;
+}
+
+/* --- Input Groups --- */
+.input-group {
+    margin-bottom: 24px;
+}
+
+.input-label {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--slate-700);
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.input-wrapper {
+    display: flex;
+    gap: 12px;
+    align-items: stretch;
+}
+
 input[type="text"], .main-input {
-    width: 100%;
-    padding: 16px;
-    font-size: 18px;
-    border: 2px solid var(--border);
+    flex: 1;
+    padding: 16px 20px;
+    font-size: 1.125rem;
+    border: 2px solid var(--slate-200);
     border-radius: 12px;
-    box-sizing: border-box;
-    background: #fdfdfd;
-    transition: border-color 0.2s;
+    background: var(--slate-50);
     color: var(--text-main);
     font-weight: 600;
+    transition: all 0.2s;
+    font-family: 'SF Mono', monospace;
 }
 
 input[type="text"]:focus {
     outline: none;
     border-color: var(--primary);
     background: #ffffff;
+    box-shadow: 0 0 0 4px rgba(0, 102, 204, 0.1);
+}
+
+input[type="text"]::placeholder {
+    color: var(--slate-400);
+    font-weight: 500;
 }
 
 #unitDisplay {
-    background: #f1f5f9;
-    padding: 0 15px;
-    height: 58px; /* Menyesuaikan tinggi input */
+    background: linear-gradient(135deg, var(--slate-800) 0%, var(--slate-700) 100%);
+    color: white;
+    padding: 0 20px;
+    min-width: 80px;
     display: flex;
     align-items: center;
     justify-content: center;
     border-radius: 12px;
     font-weight: 700;
-    color: var(--text-main);
-    min-width: 70px;
-    border: 1px solid var(--border);
-    font-size: 14px;
+    font-size: 0.875rem;
+    letter-spacing: 0.05em;
+    border: none;
+    box-shadow: var(--shadow-md);
+    text-transform: uppercase;
 }
 
-/* --- Buttons --- */
+/* --- Professional Buttons --- */
 .btn {
     width: 100%;
-    padding: 16px;
+    padding: 18px 24px;
     border-radius: 14px;
     border: none;
     font-weight: 700;
-    font-size: 15px;
+    font-size: 0.9375rem;
     text-transform: uppercase;
+    letter-spacing: 0.025em;
     cursor: pointer;
     transition: all 0.2s;
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
+    gap: 10px;
+    position: relative;
+    overflow: hidden;
+}
+
+.btn::before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.3);
+    transform: translate(-50%, -50%);
+    transition: width 0.6s, height 0.6s;
+}
+
+.btn:active::before {
+    width: 300px;
+    height: 300px;
 }
 
 .btn-primary { 
-    background: var(--primary); 
+    background: linear-gradient(135deg, var(--primary) 0%, var(--electric-blue-dark) 100%);
     color: white; 
-    box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.2);
+    box-shadow: 0 4px 14px 0 rgba(0, 102, 204, 0.39);
 }
 
-.btn-primary:active { background: var(--primary-dark); transform: translateY(1px); }
+.btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(0, 102, 204, 0.23);
+}
+
+.btn-primary:active { 
+    transform: translateY(0);
+    box-shadow: 0 2px 10px rgba(0, 102, 204, 0.23);
+}
+
+.btn-secondary {
+    background: linear-gradient(135deg, var(--energy-yellow) 0%, var(--energy-yellow-dark) 100%);
+    color: var(--slate-900);
+    box-shadow: 0 4px 14px 0 rgba(255, 193, 7, 0.39);
+}
 
 .btn-outline { 
     background: transparent; 
-    border: 1px solid var(--border); 
-    color: var(--text-main); 
+    border: 2px solid var(--slate-300); 
+    color: var(--slate-700); 
 }
 
-.btn-outline:active { background: #f8fafc; }
+.btn-outline:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: var(--primary-light);
+}
 
-/* --- Custom Alert Overlay --- */
+/* --- Electrical Icons Integration --- */
+.icon-bolt::before { content: "⚡"; }
+.icon-plug::before { content: "🔌"; }
+.icon-bulb::before { content: "💡"; }
+.icon-circuit::before { content: "🔧"; }
+.icon-warning::before { content: "⚠️"; }
+.icon-check::before { content: "✓"; }
+
+/* --- Custom Alert: Professional Modal --- */
 .custom-alert {
-    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(15, 23, 42, 0.6);
-    display: flex; justify-content: center; align-items: center;
+    position: fixed; 
+    top: 0; 
+    left: 0; 
+    right: 0; 
+    bottom: 0;
+    background: rgba(15, 23, 42, 0.8);
+    display: flex; 
+    justify-content: center; 
+    align-items: center;
     z-index: 10000;
-    backdrop-filter: blur(6px);
+    backdrop-filter: blur(8px);
+    padding: 20px;
 }
-.custom-alert.hidden { display: none; }
+
+.custom-alert.hidden { 
+    display: none; 
+}
 
 .alert-content {
-    background: white; padding: 32px; border-radius: 28px;
-    width: 85%; max-width: 340px; text-align: center;
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-    animation: popupIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    background: white; 
+    padding: 32px; 
+    border-radius: 24px;
+    width: 100%;
+    max-width: 360px; 
+    text-align: center;
+    box-shadow: var(--shadow-xl);
+    animation: modalIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    border: 1px solid var(--slate-100);
 }
 
-@keyframes popupIn {
-    from { transform: scale(0.8); opacity: 0; }
-    to { transform: scale(1); opacity: 1; }
+@keyframes modalIn {
+    from { 
+        transform: scale(0.9) translateY(20px); 
+        opacity: 0; 
+    }
+    to { 
+        transform: scale(1) translateY(0); 
+        opacity: 1; 
+    }
 }
 
-/* --- Loader Overlay --- */
+.alert-icon {
+    width: 64px;
+    height: 64px;
+    background: linear-gradient(135deg, var(--primary-light) 0%, #ffffff 100%);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 20px;
+    font-size: 2rem;
+    border: 2px solid rgba(0, 102, 204, 0.1);
+}
+
+.alert-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--slate-800);
+    margin-bottom: 12px;
+}
+
+.alert-message {
+    color: var(--text-secondary);
+    font-size: 0.9375rem;
+    line-height: 1.6;
+    margin-bottom: 24px;
+}
+
+.alert-btn {
+    width: 100%;
+    padding: 14px;
+    border-radius: 12px;
+    border: none;
+    background: var(--primary);
+    color: white;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.alert-btn:hover {
+    background: var(--primary-dark);
+}
+
+/* --- Loader: Electrical Theme --- */
 .loader-overlay {
-    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(248, 250, 252, 0.9);
-    display: flex; flex-direction: column; 
-    justify-content: center; align-items: center; z-index: 9999;
+    position: fixed; 
+    top: 0; 
+    left: 0; 
+    right: 0; 
+    bottom: 0;
+    background: rgba(248, 250, 252, 0.95);
+    display: flex; 
+    flex-direction: column; 
+    justify-content: center; 
+    align-items: center; 
+    z-index: 9999;
+    gap: 24px;
 }
 
-@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+.loader-bolt {
+    font-size: 4rem;
+    animation: boltPulse 1.5s infinite;
+    filter: drop-shadow(0 0 20px rgba(0, 191, 255, 0.6));
+}
+
+@keyframes boltPulse {
+    0%, 100% { 
+        transform: scale(1); 
+        opacity: 1; 
+        filter: drop-shadow(0 0 20px rgba(0, 191, 255, 0.6));
+    }
+    50% { 
+        transform: scale(1.1); 
+        opacity: 0.8;
+        filter: drop-shadow(0 0 40px rgba(0, 191, 255, 0.8));
+    }
+}
+
+.loader-text {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--slate-600);
+    letter-spacing: 0.05em;
+}
+
+/* --- Circuit Pattern Background (Optional) --- */
+.circuit-bg {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    opacity: 0.03;
+    pointer-events: none;
+    background-image: 
+        linear-gradient(var(--slate-400) 1px, transparent 1px),
+        linear-gradient(90deg, var(--slate-400) 1px, transparent 1px);
+    background-size: 40px 40px;
+    z-index: -1;
+}
+
+/* --- Results Display --- */
+.result-card {
+    background: linear-gradient(135deg, var(--slate-800) 0%, var(--slate-900) 100%);
+    color: white;
+    padding: 24px;
+    border-radius: 16px;
+    margin-top: 20px;
+    box-shadow: var(--shadow-lg);
+    position: relative;
+    overflow: hidden;
+}
+
+.result-card::before {
+    content: "";
+    position: absolute;
+    top: -50%;
+    right: -50%;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle, rgba(0, 191, 255, 0.1) 0%, transparent 70%);
+}
+
+.result-label {
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--electric-cyan);
+    margin-bottom: 8px;
+    font-weight: 600;
+}
+
+.result-value {
+    font-size: 2rem;
+    font-weight: 800;
+    font-family: 'SF Mono', monospace;
+    letter-spacing: -0.02em;
+}
+
+/* --- Responsive Adjustments --- */
+@media (max-width: 480px) {
+    .app-container {
+        padding: 16px;
+    }
+    
+    .header-title {
+        font-size: 1.25rem;
+    }
+    
+    .area-item {
+        padding: 16px;
+    }
+    
+    .input-container {
+        padding: 20px;
+    }
+}
+
+/* --- Dark Mode Support --- */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg-color: var(--slate-900);
+        --card-bg: var(--slate-800);
+        --text-main: var(--slate-100);
+        --text-secondary: var(--slate-300);
+        --border: var(--slate-700);
+    }
+    
+    body {
+        background: linear-gradient(135deg, var(--slate-900) 0%, var(--slate-800) 100%);
+    }
+    
+    input[type="text"], .main-input {
+        background: var(--slate-700);
+        border-color: var(--slate-600);
+        color: var(--slate-100);
+    }
+    
+    input[type="text"]:focus {
+        background: var(--slate-800);
+    }
+}
