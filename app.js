@@ -1,7 +1,7 @@
 // ============================================
 // 1 PINTU KONFIGURASI VERSION - UBAH INI SAJA
 // ============================================
-const APP_VERSION = '1.0.0';  // ⬅️ UBAH VERSI INI SAAT DEPLOY ULANG
+const APP_VERSION = '1.0.1';  // ⬅️ UBAH VERSI INI SAAT DEPLOY ULANG
 // ============================================
 
 // Pendaftaran Service Worker dengan version control
