@@ -1,7 +1,7 @@
 // ============================================
 // TURBINE LOGSHEET PRO - VERSION CONTROL
 // ============================================
-const APP_VERSION = '1.0.3'; // Update: Auto-detect select input for pumps/status
+const APP_VERSION = '1.0.4'; // Update: Modern alert with SVG animation & confetti
 
 // Service Worker Registration dengan Update Handling
 if ('serviceWorker' in navigator) {
@@ -32,7 +32,6 @@ if ('serviceWorker' in navigator) {
 // ============================================
 // INPUT TYPE CONFIGURATION
 // ============================================
-// Deteksi otomatis tipe input berdasarkan pattern di label
 const INPUT_TYPES = {
     PUMP_STATUS: {
         patterns: ['(A/B)', '(ON/OFF)', '(On/Off)', '(Running/Stop)', '(Remote/Running/Stop)'],
@@ -46,7 +45,6 @@ const INPUT_TYPES = {
     }
 };
 
-// Function untuk detect tipe input
 function detectInputType(label) {
     for (const [type, config] of Object.entries(INPUT_TYPES)) {
         for (const pattern of config.patterns) {
@@ -194,25 +192,20 @@ const AREAS = {
     ]
 };
 
-// Google Apps Script URL
 const GAS_URL = "https://script.google.com/macros/s/AKfycbx5ldkn8uUOplo2F2rKD9OOjARjIZCRIcPYhu_tK7UCWsR1DlnVFShQSuGoxCkW1t4i/exec";
 
-// State Management
 let lastData = {};
 let currentInput = JSON.parse(localStorage.getItem('draft_turbine')) || {};
 let activeArea = "";
 let activeIdx = 0;
 let totalParams = 0;
-let currentInputType = 'text'; // Track tipe input saat ini
+let currentInputType = 'text';
+let autoCloseTimer = null;
 
-// Initialization
 window.addEventListener('DOMContentLoaded', () => {
-    // Calculate total parameters
     totalParams = Object.values(AREAS).reduce((acc, arr) => acc + arr.length, 0);
     document.getElementById('totalParams').textContent = totalParams;
     document.getElementById('versionDisplay').textContent = APP_VERSION;
-    
-    // Simulate loading progress
     simulateLoading();
 });
 
@@ -232,7 +225,6 @@ function simulateLoading() {
     }, 300);
 }
 
-// Update Alert Functions
 function showUpdateAlert() {
     document.getElementById('updateAlert').classList.remove('hidden');
 }
@@ -244,25 +236,69 @@ function applyUpdate() {
     window.location.reload();
 }
 
-// Alert Functions
+// ============================================
+// ALERT SYSTEM WITH SVG ANIMATION & CONFETTI
+// ============================================
 function showCustomAlert(msg, type = 'success') {
-    const alertIcon = document.getElementById('alertIcon');
+    const alertContent = document.getElementById('alertContent');
     const alertTitle = document.getElementById('alertTitle');
+    const alertIconWrapper = document.getElementById('alertIconWrapper');
+    const customAlert = document.getElementById('customAlert');
     
-    if (type === 'success') {
-        alertIcon.textContent = '✅';
-        alertTitle.textContent = 'Berhasil';
-    } else {
-        alertIcon.textContent = '❌';
-        alertTitle.textContent = 'Error';
+    // Clear previous auto-close timer
+    if (autoCloseTimer) {
+        clearTimeout(autoCloseTimer);
+        autoCloseTimer = null;
     }
     
+    // Set content
+    alertTitle.textContent = type === 'success' ? 'Berhasil' : 'Error';
     document.getElementById('alertMessage').innerText = msg;
-    document.getElementById('customAlert').classList.remove('hidden');
+    
+    // Set styling class
+    alertContent.className = 'alert-content ' + type;
+    
+    // Set icon based on type
+    if (type === 'success') {
+        alertIconWrapper.innerHTML = `
+            <div class="alert-icon-bg"></div>
+            <svg class="alert-icon-svg" viewBox="0 0 52 52">
+                <circle cx="26" cy="26" r="25"></circle>
+                <path d="M14.1 27.2l7.1 7.2 16.7-16.8"></path>
+            </svg>
+        `;
+    } else {
+        alertIconWrapper.innerHTML = `
+            <div class="alert-icon-bg" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);"></div>
+            <svg class="alert-icon-svg" viewBox="0 0 52 52" style="stroke: #ef4444;">
+                <circle cx="26" cy="26" r="25"></circle>
+                <path d="M16 16 L36 36 M36 16 L16 36"></path>
+            </svg>
+        `;
+    }
+    
+    // Show alert
+    customAlert.classList.remove('hidden');
+    
+    // Auto-close for success after 3 seconds
+    if (type === 'success') {
+        autoCloseTimer = setTimeout(() => {
+            if (!customAlert.classList.contains('hidden')) {
+                closeAlert();
+            }
+        }, 3000);
+    }
 }
 
 function closeAlert() {
-    document.getElementById('customAlert').classList.add('hidden');
+    const customAlert = document.getElementById('customAlert');
+    customAlert.classList.add('hidden');
+    
+    // Clear timer if manually closed
+    if (autoCloseTimer) {
+        clearTimeout(autoCloseTimer);
+        autoCloseTimer = null;
+    }
 }
 
 // Navigation
@@ -282,11 +318,8 @@ function navigateTo(screenId) {
     }
 }
 
-// Data Fetching dengan Timeout
 function fetchLastData() {
     const statusPill = document.getElementById('statusPill');
-    
-    // Set initial offline state
     updateStatusIndicator(false);
     
     const timeout = setTimeout(() => {
@@ -325,7 +358,6 @@ function updateStatusIndicator(isOnline) {
     }
 }
 
-// Menu Rendering dengan Progress
 function renderMenu() {
     const list = document.getElementById('areaList');
     const totalAreas = Object.keys(AREAS).length;
@@ -341,7 +373,7 @@ function renderMenu() {
         
         if (isCompleted) completedAreas++;
         
-        const circumference = 2 * Math.PI * 18; // r=18
+        const circumference = 2 * Math.PI * 18;
         const strokeDashoffset = circumference - (percent / 100) * circumference;
         
         html += `
@@ -368,11 +400,9 @@ function renderMenu() {
     
     list.innerHTML = html;
     
-    // Update submit button
     const hasData = Object.keys(currentInput).length > 0;
     document.getElementById('submitBtn').style.display = hasData ? 'flex' : 'none';
     
-    // Update overall progress
     const overallPercent = Math.round((completedAreas / totalAreas) * 100);
     document.getElementById('progressText').textContent = `${overallPercent}% Complete`;
     document.getElementById('overallPercent').textContent = `${overallPercent}%`;
@@ -394,7 +424,6 @@ function updateOverallProgress() {
     document.getElementById('overallProgressBar').style.width = `${percent}%`;
 }
 
-// Area Selection
 function openArea(areaName) {
     activeArea = areaName;
     activeIdx = 0;
@@ -420,7 +449,6 @@ function renderProgressDots() {
 }
 
 function jumpToStep(index) {
-    // Save current first if has value
     const input = document.getElementById('valInput');
     if (input) {
         const currentVal = input.value.trim();
@@ -437,7 +465,6 @@ function jumpToStep(index) {
     renderProgressDots();
 }
 
-// Unit Extraction
 function getUnit(label) {
     const match = label.match(/\(([^)]+)\)/);
     return match ? match[1] : "";
@@ -447,12 +474,11 @@ function getParamName(label) {
     return label.split(' (')[0];
 }
 
-// Step Management dengan Dynamic Input
 function showStep() {
     const fullLabel = AREAS[activeArea][activeIdx];
     const total = AREAS[activeArea].length;
     const inputType = detectInputType(fullLabel);
-    currentInputType = inputType.type; // Simpan untuk digunakan di saveStep
+    currentInputType = inputType.type;
     
     document.getElementById('stepInfo').textContent = `Step ${activeIdx + 1}/${total}`;
     document.getElementById('areaProgress').textContent = `${activeIdx + 1}/${total}`;
@@ -460,13 +486,11 @@ function showStep() {
     document.getElementById('lastTimeLabel').textContent = lastData._lastTime || '--:--';
     document.getElementById('prevValDisplay').textContent = lastData[fullLabel] || '--';
     
-    // Render input field berdasarkan tipe
     const inputContainer = document.getElementById('inputFieldContainer');
     const unitDisplay = document.getElementById('unitDisplay');
     const currentValue = (currentInput[activeArea] && currentInput[activeArea][fullLabel]) || '';
     
     if (inputType.type === 'select') {
-        // Buat dropdown untuk pompa/status
         let optionsHtml = `<option value="" disabled ${!currentValue ? 'selected' : ''}>Pilih Status...</option>`;
         inputType.options.forEach(opt => {
             const selected = currentValue === opt ? 'selected' : '';
@@ -486,11 +510,9 @@ function showStep() {
             </div>
         `;
         
-        // Hide unit display untuk select
         unitDisplay.style.display = 'none';
         document.getElementById('mainInputWrapper').classList.add('has-select');
     } else {
-        // Input text normal untuk nilai numerik
         inputContainer.innerHTML = `
             <input type="text" id="valInput" inputmode="decimal" placeholder="0.00" value="${currentValue}" autocomplete="off">
         `;
@@ -499,7 +521,6 @@ function showStep() {
         document.getElementById('mainInputWrapper').classList.remove('has-select');
     }
     
-    // Update progress dots
     const dots = document.querySelectorAll('.progress-dot');
     dots.forEach((dot, idx) => {
         dot.className = 'progress-dot';
@@ -509,17 +530,11 @@ function showStep() {
         }
     });
     
-    // Focus/select logic
     setTimeout(() => {
         const input = document.getElementById('valInput');
-        if (input) {
-            if (inputType.type === 'select') {
-                // Untuk select, tidak perlu focus agar tidak auto buka di mobile
-                // tapi bisa jika mau: input.focus();
-            } else {
-                input.focus();
-                input.select();
-            }
+        if (input && inputType.type === 'text') {
+            input.focus();
+            input.select();
         }
     }, 100);
 }
@@ -541,9 +556,8 @@ function saveStep() {
         activeIdx++;
         showStep();
     } else {
-        // Area completed
         showCustomAlert(`Area ${activeArea} selesai diisi!`, 'success');
-        setTimeout(() => navigateTo('areaListScreen'), 1000);
+        setTimeout(() => navigateTo('areaListScreen'), 1500);
     }
 }
 
@@ -556,7 +570,6 @@ function goBack() {
     }
 }
 
-// Data Submission
 async function sendToSheet() {
     const loader = document.getElementById('loader');
     loader.style.display = 'flex';
@@ -581,7 +594,7 @@ async function sendToSheet() {
         
         setTimeout(() => {
             navigateTo('homeScreen');
-        }, 1500);
+        }, 2000);
         
     } catch (error) {
         showCustomAlert('Gagal mengirim data. Periksa koneksi internet.', 'error');
@@ -590,13 +603,11 @@ async function sendToSheet() {
     }
 }
 
-// Keyboard Navigation
 document.addEventListener('keydown', (e) => {
     if (!document.getElementById('paramScreen').classList.contains('active')) return;
     
     if (e.key === 'Enter') {
         e.preventDefault();
-        // Jika select dropdown terbuka, Enter akan memilih, jadi tidak perlu saveStep lagi
         if (currentInputType !== 'select') {
             saveStep();
         }
