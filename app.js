@@ -1,7 +1,7 @@
 // ============================================
 // TURBINE LOGSHEET PRO - VERSION CONTROL
 // ============================================
-const APP_VERSION = '1.0.4'; // Update: Modern alert with SVG animation & confetti
+const APP_VERSION = '1.0.5'; // Update: Modern alert with SVG animation & confetti
 
 // Service Worker Registration dengan Update Handling
 if ('serviceWorker' in navigator) {
