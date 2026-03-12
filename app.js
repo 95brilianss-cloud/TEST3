@@ -1,6 +1,41 @@
-// Pendaftaran Service Worker
+// ============================================
+// 1 PINTU KONFIGURASI VERSION - UBAH INI SAJA
+// ============================================
+const APP_VERSION = '1.0.0';  // ⬅️ UBAH VERSI INI SAAT DEPLOY ULANG
+// ============================================
+
+// Pendaftaran Service Worker dengan version control
 if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => { navigator.serviceWorker.register('./sw.js'); });
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js?v=' + APP_VERSION)
+            .then(registration => {
+                console.log('SW registered: ', registration);
+
+                // Deteksi update service worker
+                registration.addEventListener('updatefound', () => {
+                    const newWorker = registration.installing;
+                    newWorker.addEventListener('statechange', () => {
+                        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                            // Versi baru tersedia, tampilkan notifikasi
+                            showUpdateAlert();
+                        }
+                    });
+                });
+            })
+            .catch(error => {
+                console.log('SW registration failed: ', error);
+            });
+
+        // Cek versi dari service worker yang aktif
+        navigator.serviceWorker.addEventListener('message', event => {
+            if (event.data && event.data.type === 'VERSION_CHECK') {
+                const swVersion = event.data.version;
+                if (swVersion !== APP_VERSION) {
+                    showUpdateAlert();
+                }
+            }
+        });
+    });
 }
 
 // Database Parameter
@@ -23,10 +58,35 @@ const GAS_URL = "https://script.google.com/macros/s/AKfycbx5ldkn8uUOplo2F2rKD9OO
 
 let lastData = {}, currentInput = JSON.parse(localStorage.getItem('draft_turbine')) || {}, activeArea = "", activeIdx = 0;
 
-window.onload = () => { renderMenu(); };
+window.onload = () => {
+    // Tampilkan versi di home screen
+    document.getElementById('versionDisplay').innerText = 'v' + APP_VERSION;
+    renderMenu();
+};
 
-function showCustomAlert(msg) { document.getElementById('alertMessage').innerText = msg; document.getElementById('customAlert').classList.remove('hidden'); }
-function closeAlert() { document.getElementById('customAlert').classList.add('hidden'); }
+// Fungsi untuk menampilkan alert update
+function showUpdateAlert() {
+    document.getElementById('updateAlert').classList.remove('hidden');
+}
+
+// Fungsi untuk apply update
+function applyUpdate() {
+    // Kirim pesan ke SW untuk skip waiting
+    if (navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({ type: 'SKIP_WAITING' });
+    }
+    // Reload halaman untuk mengaktifkan SW baru
+    window.location.reload();
+}
+
+function showCustomAlert(msg) { 
+    document.getElementById('alertMessage').innerText = msg; 
+    document.getElementById('customAlert').classList.remove('hidden'); 
+}
+
+function closeAlert() { 
+    document.getElementById('customAlert').classList.add('hidden'); 
+}
 
 function navigateTo(id) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -35,7 +95,10 @@ function navigateTo(id) {
 }
 
 function fetchLastData() {
-    const timeout = setTimeout(() => { document.getElementById('loader').style.display = 'none'; renderMenu(); }, 5000); 
+    const timeout = setTimeout(() => { 
+        document.getElementById('loader').style.display = 'none'; 
+        renderMenu(); 
+    }, 5000); 
     const cb = 'jsonp_' + Date.now();
     const s = document.createElement('script');
     window[cb] = (d) => { 
@@ -64,9 +127,18 @@ function renderMenu() {
     document.getElementById('submitBtn').style.display = Object.keys(currentInput).length > 0 ? 'block' : 'none';
 }
 
-function openArea(a) { activeArea = a; activeIdx = 0; navigateTo('paramScreen'); document.getElementById('currentAreaName').innerText = a; showStep(); }
+function openArea(a) { 
+    activeArea = a; 
+    activeIdx = 0; 
+    navigateTo('paramScreen'); 
+    document.getElementById('currentAreaName').innerText = a; 
+    showStep(); 
+}
 
-function getUnit(label) { const match = label.match(/\(([^)]+)\)/); return match ? match[1] : ""; }
+function getUnit(label) { 
+    const match = label.match(/\(([^)]+)\)/); 
+    return match ? match[1] : ""; 
+}
 
 function showStep() {
     const fullLabel = AREAS[activeArea][activeIdx];
@@ -87,13 +159,21 @@ function saveStep() {
         currentInput[activeArea][fullLabel] = val;
         localStorage.setItem('draft_turbine', JSON.stringify(currentInput));
     }
-    if(activeIdx < AREAS[activeArea].length - 1) { activeIdx++; showStep(); } 
-    else { navigateTo('areaListScreen'); }
+    if(activeIdx < AREAS[activeArea].length - 1) { 
+        activeIdx++; 
+        showStep(); 
+    } else { 
+        navigateTo('areaListScreen'); 
+    }
 }
 
 function goBack() {
-    if(activeIdx > 0) { activeIdx--; showStep(); } 
-    else { navigateTo('areaListScreen'); }
+    if(activeIdx > 0) { 
+        activeIdx--; 
+        showStep(); 
+    } else { 
+        navigateTo('areaListScreen'); 
+    }
 }
 
 async function sendToSheet() {
