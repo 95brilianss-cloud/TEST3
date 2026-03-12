@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="id" data-theme="light">
+<html lang="id" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -46,34 +46,48 @@
     <div class="loader-text">
         <h3>Turbine System</h3>
         <p>Sinkronisasi Data...</p>
-        <div class="progress-bar">
-            <div class="progress-fill" id="loaderProgress"></div>
+        <div class="progress-bar-loader">
+            <div class="fill" id="loaderProgress"></div>
         </div>
     </div>
 </div>
 
 <!-- Update Alert -->
 <div id="updateAlert" class="custom-alert hidden">
-    <div class="alert-content glass">
-        <div class="update-icon">🔄</div>
+    <div class="alert-content">
+        <div class="update-icon-wrapper">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+            </svg>
+        </div>
         <h3>Update Tersedia</h3>
         <p>Versi baru aplikasi telah tersedia dengan peningkatan performa dan fitur.</p>
-        <button class="btn btn-primary" onclick="applyUpdate()">
-            <span>Update Sekarang</span>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M7 17L17 7M17 7H7M17 7V17"/>
-            </svg>
-        </button>
+        <button class="alert-btn" onclick="applyUpdate()">Update Sekarang</button>
     </div>
 </div>
 
-<!-- Custom Alert -->
+<!-- Custom Alert (Success/Error) -->
 <div id="customAlert" class="custom-alert hidden">
-    <div class="alert-content glass">
-        <div class="alert-icon" id="alertIcon">✅</div>
+    <div class="alert-content" id="alertContent">
+        <!-- Confetti particles -->
+        <div class="confetti"></div>
+        <div class="confetti"></div>
+        <div class="confetti"></div>
+        <div class="confetti"></div>
+        <div class="confetti"></div>
+        
+        <!-- Animated Icon -->
+        <div class="alert-icon-wrapper" id="alertIconWrapper">
+            <div class="alert-icon-bg"></div>
+            <svg class="alert-icon-svg" viewBox="0 0 52 52">
+                <circle cx="26" cy="26" r="25"></circle>
+                <path d="M14.1 27.2l7.1 7.2 16.7-16.8"></path>
+            </svg>
+        </div>
+        
         <h3 id="alertTitle">Berhasil</h3>
         <p id="alertMessage">Data berhasil dikirim!</p>
-        <button class="btn btn-primary" onclick="closeAlert()">Oke</button>
+        <button class="alert-btn success" onclick="closeAlert()">Oke</button>
     </div>
 </div>
 
@@ -207,13 +221,14 @@
             <h2 class="param-title" id="labelInput">Parameter Name</h2>
             
             <div class="input-group">
-    <div class="input-wrapper" id="mainInputWrapper">
-        <div id="inputFieldContainer" style="flex: 1; width: 100%;">
-            <!-- Dynamic: input text atau select -->
-        </div>
-        <div class="input-unit" id="unitDisplay">--</div>
-    </div>
-</div>
+                <div class="input-wrapper" id="mainInputWrapper">
+                    <div id="inputFieldContainer" style="flex: 1; width: 100%;">
+                        <!-- Dynamic content: input text atau select -->
+                    </div>
+                    <div class="input-unit" id="unitDisplay">--</div>
+                </div>
+            </div>
+
             <div class="reference-data">
                 <div class="ref-item">
                     <span class="ref-label">Nilai Terakhir</span>
