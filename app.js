@@ -1,14 +1,300 @@
 // ============================================
-// TURBINE LOGSHEET PRO - v1.2.0
-// Mobile Optimized JavaScript
+// TURBINE LOGSHEET PRO - VERSION CONTROL
+// ============================================
+const APP_VERSION = '1.1.1';
+
+// ============================================
+// AUTHENTICATION SYSTEM
+// ============================================
+const AUTH_CONFIG = {
+    SESSION_KEY: 'turbine_session',
+    USER_KEY: 'turbine_user',
+    SESSION_DURATION: 8 * 60 * 60 * 1000, // 8 hours in milliseconds
+    REMEMBER_ME_DURATION: 30 * 24 * 60 * 60 * 1000 // 30 days
+};
+
+let currentUser = null;
+let isAuthenticated = false;
+
+// ============================================
+// SERVICE WORKER REGISTRATION
+// ============================================
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register(`./sw.js?v=${APP_VERSION}`)
+            .then(registration => {
+                console.log('SW registered:', registration);
+                registration.addEventListener('updatefound', () => {
+                    const newWorker = registration.installing;
+                    newWorker.addEventListener('statechange', () => {
+                        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                            showUpdateAlert();
+                        }
+                    });
+                });
+            })
+            .catch(err => console.log('SW registration failed:', err));
+            
+        navigator.serviceWorker.addEventListener('message', event => {
+            if (event.data?.type === 'VERSION_CHECK' && event.data.version !== APP_VERSION) {
+                showUpdateAlert();
+            }
+        });
+    });
+}
+
+// ============================================
+// AUTHENTICATION FUNCTIONS
 // ============================================
 
-const APP_VERSION = '1.1.0';
-const GAS_URL = "https://script.google.com/macros/s/AKfycbz30vHFmRl3MVX-kt8XiUxowhqX1rx0fTYCiGQoKo3e_w5DdblfyP6kU-UKbjMSx3_R/exec";
+/**
+ * Initialize authentication on app load
+ */
+function initAuth() {
+    const session = getSession();
+    
+    if (session && isSessionValid(session)) {
+        // Auto-login with existing session
+        currentUser = session.user;
+        isAuthenticated = true;
+        updateUIForAuthenticatedUser();
+        
+        // Check if we need to redirect from login screen
+        const loginScreen = document.getElementById('loginScreen');
+        if (loginScreen && loginScreen.classList.contains('active')) {
+            navigateTo('homeScreen');
+        }
+    } else {
+        // Clear invalid session and show login
+        clearSession();
+        showLoginScreen();
+    }
+}
+
+/**
+ * Get current session from storage
+ */
+function getSession() {
+    try {
+        const sessionData = localStorage.getItem(AUTH_CONFIG.SESSION_KEY);
+        return sessionData ? JSON.parse(sessionData) : null;
+    } catch (e) {
+        console.error('Error reading session:', e);
+        return null;
+    }
+}
+
+/**
+ * Save session to storage
+ */
+function saveSession(user, rememberMe = false) {
+    const duration = rememberMe ? AUTH_CONFIG.REMEMBER_ME_DURATION : AUTH_CONFIG.SESSION_DURATION;
+    const session = {
+        user: user,
+        loginTime: Date.now(),
+        expiresAt: Date.now() + duration,
+        rememberMe: rememberMe
+    };
+    
+    try {
+        localStorage.setItem(AUTH_CONFIG.SESSION_KEY, JSON.stringify(session));
+        localStorage.setItem(AUTH_CONFIG.USER_KEY, JSON.stringify(user));
+    } catch (e) {
+        console.error('Error saving session:', e);
+    }
+}
+
+/**
+ * Check if session is still valid
+ */
+function isSessionValid(session) {
+    if (!session || !session.expiresAt) return false;
+    return Date.now() < session.expiresAt;
+}
+
+/**
+ * Clear session from storage
+ */
+function clearSession() {
+    localStorage.removeItem(AUTH_CONFIG.SESSION_KEY);
+    localStorage.removeItem(AUTH_CONFIG.USER_KEY);
+    currentUser = null;
+    isAuthenticated = false;
+}
+
+/**
+ * Handle operator login
+ */
+function loginOperator() {
+    const nameInput = document.getElementById('operatorName');
+    const errorMsg = document.getElementById('loginError');
+    const rememberCheckbox = document.getElementById('rememberMe'); // Optional checkbox
+    
+    if (!nameInput) {
+        console.error('Login input not found');
+        return;
+    }
+    
+    const operatorName = nameInput.value.trim();
+    
+    // Validation
+    if (!operatorName) {
+        if (errorMsg) {
+            errorMsg.textContent = 'Nama operator wajib diisi!';
+            errorMsg.style.display = 'block';
+        }
+        nameInput.focus();
+        nameInput.classList.add('error');
+        return;
+    }
+    
+    if (operatorName.length < 3) {
+        if (errorMsg) {
+            errorMsg.textContent = 'Nama minimal 3 karakter!';
+            errorMsg.style.display = 'block';
+        }
+        nameInput.focus();
+        nameInput.classList.add('error');
+        return;
+    }
+    
+    // Clear error state
+    if (errorMsg) errorMsg.style.display = 'none';
+    nameInput.classList.remove('error');
+    
+    // Create user object
+    const user = {
+        name: operatorName,
+        id: 'OP-' + Date.now().toString(36).toUpperCase(),
+        loginTime: new Date().toISOString(),
+        role: 'operator'
+    };
+    
+    // Save session
+    const rememberMe = rememberCheckbox ? rememberCheckbox.checked : false;
+    saveSession(user, rememberMe);
+    currentUser = user;
+    isAuthenticated = true;
+    
+    // Show success animation
+    showCustomAlert(`Selamat datang, ${operatorName}!`, 'success');
+    
+    // Update UI and navigate
+    setTimeout(() => {
+        updateUIForAuthenticatedUser();
+        navigateTo('homeScreen');
+        loadUserStats();
+    }, 800);
+}
+
+/**
+ * Handle operator logout
+ */
+function logoutOperator() {
+    // Confirm logout
+    if (confirm('Apakah Anda yakin ingin keluar?')) {
+        // Save any pending data before logout
+        if (Object.keys(currentInput).length > 0) {
+            localStorage.setItem('draft_turbine_backup', JSON.stringify(currentInput));
+        }
+        
+        clearSession();
+        
+        // Reset UI
+        const nameInput = document.getElementById('operatorName');
+        if (nameInput) nameInput.value = '';
+        
+        showLoginScreen();
+        showCustomAlert('Anda telah keluar dari sistem.', 'success');
+    }
+}
+
+/**
+ * Show login screen
+ */
+function showLoginScreen() {
+    navigateTo('loginScreen');
+    
+    // Check for saved username
+    const savedUser = localStorage.getItem(AUTH_CONFIG.USER_KEY);
+    if (savedUser) {
+        try {
+            const user = JSON.parse(savedUser);
+            const nameInput = document.getElementById('operatorName');
+            if (nameInput && user.name) {
+                nameInput.value = user.name;
+            }
+        } catch (e) {
+            console.error('Error parsing saved user:', e);
+        }
+    }
+}
+
+/**
+ * Update all UI elements for authenticated user
+ */
+function updateUIForAuthenticatedUser() {
+    if (!currentUser) return;
+    
+    // Update all user name displays
+    const userElements = [
+        'displayUserName',
+        'tpmHeaderUser',
+        'tpmInputUser',
+        'areaListUser',
+        'paramUser'
+    ];
+    
+    userElements.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = currentUser.name;
+    });
+}
+
+/**
+ * Check authentication status (call before protected actions)
+ */
+function requireAuth() {
+    if (!isAuthenticated || !isSessionValid(getSession())) {
+        clearSession();
+        showLoginScreen();
+        showCustomAlert('Sesi Anda telah berakhir. Silakan login kembali.', 'error');
+        return false;
+    }
+    return true;
+}
+
+/**
+ * Load user statistics
+ */
+function loadUserStats() {
+    // Calculate user's progress
+    const totalAreas = Object.keys(AREAS).length;
+    let completedAreas = 0;
+    
+    Object.entries(AREAS).forEach(([areaName, params]) => {
+        const filled = currentInput[areaName] ? Object.keys(currentInput[areaName]).length : 0;
+        if (filled === params.length && filled > 0) completedAreas++;
+    });
+    
+    // Update stats display
+    const statProgress = document.getElementById('statProgress');
+    const statAreas = document.getElementById('statAreas');
+    
+    if (statProgress) {
+        const percent = Math.round((completedAreas / totalAreas) * 100);
+        statProgress.textContent = `${percent}%`;
+    }
+    
+    if (statAreas) {
+        statAreas.textContent = `${completedAreas}/${totalAreas}`;
+    }
+}
 
 // ============================================
 // CONFIGURATION
 // ============================================
+const GAS_URL = "https://script.google.com/macros/s/AKfycbz30vHFmRl3MVX-kt8XiUxowhqX1rx0fTYCiGQoKo3e_w5DdblfyP6kU-UKbjMSx3_R/exec";
 
 const INPUT_TYPES = {
     PUMP_STATUS: {
@@ -154,11 +440,7 @@ const AREAS = {
     ]
 };
 
-// ============================================
-// STATE
-// ============================================
-
-let currentUser = localStorage.getItem('current_operator') || '';
+// State Variables
 let lastData = {};
 let currentInput = JSON.parse(localStorage.getItem('draft_turbine')) || {};
 let activeArea = "";
@@ -175,402 +457,404 @@ let currentTPMStatus = '';
 // ============================================
 // INITIALIZATION
 // ============================================
-
 window.addEventListener('DOMContentLoaded', () => {
     totalParams = Object.values(AREAS).reduce((acc, arr) => acc + arr.length, 0);
     
-    // Update version
     const versionDisplay = document.getElementById('versionDisplay');
-    if (versionDisplay) versionDisplay.textContent = APP_VERSION;
-    
-    // Check login
-    if (currentUser) {
-        updateUserDisplay();
-        simulateLoading(() => {
-            showScreen('homeScreen');
-            updateHomeStats();
-        });
-    } else {
-        showScreen('loginScreen');
-        hideLoader();
+    if (versionDisplay) {
+        versionDisplay.textContent = APP_VERSION;
     }
     
-    // Setup keyboard handlers
-    setupKeyboardHandlers();
+    // Initialize auth system
+    initAuth();
+    
+    // Setup login input listeners
+    setupLoginListeners();
+    
+    simulateLoading();
 });
 
-// ============================================
-// LOADER
-// ============================================
-
-function simulateLoading(callback) {
-    const loader = document.getElementById('loader');
-    const progress = document.getElementById('loaderProgress');
-    
-    if (loader) loader.style.display = 'flex';
-    
-    let p = 0;
-    const interval = setInterval(() => {
-        p += Math.random() * 30;
-        if (p >= 100) {
-            p = 100;
-            clearInterval(interval);
-            if (progress) progress.style.width = '100%';
-            setTimeout(() => {
-                hideLoader();
-                if (callback) callback();
-            }, 400);
-        } else {
-            if (progress) progress.style.width = p + '%';
-        }
-    }, 150);
-}
-
-function hideLoader() {
-    const loader = document.getElementById('loader');
-    if (loader) {
-        loader.style.opacity = '0';
-        setTimeout(() => loader.style.display = 'none', 300);
+function setupLoginListeners() {
+    const nameInput = document.getElementById('operatorName');
+    if (nameInput) {
+        // Remove error state on input
+        nameInput.addEventListener('input', () => {
+            nameInput.classList.remove('error');
+            const errorMsg = document.getElementById('loginError');
+            if (errorMsg) errorMsg.style.display = 'none';
+        });
+        
+        // Allow Enter key to submit
+        nameInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                loginOperator();
+            }
+        });
     }
 }
 
-// ============================================
-// LOGIN SYSTEM
-// ============================================
+function simulateLoading() {
+    let progress = 0;
+    const loaderProgress = document.getElementById('loaderProgress');
+    const interval = setInterval(() => {
+        progress += Math.random() * 30;
+        if (progress >= 100) {
+            progress = 100;
+            clearInterval(interval);
+            setTimeout(() => {
+                const loader = document.getElementById('loader');
+                if (loader) loader.style.display = 'none';
+                
+                // Only render menu if authenticated, otherwise stay on login
+                if (isAuthenticated) {
+                    renderMenu();
+                }
+            }, 500);
+        }
+        if (loaderProgress) loaderProgress.style.width = progress + '%';
+    }, 300);
+}
 
-function loginOperator() {
-    const input = document.getElementById('operatorName');
-    const error = document.getElementById('loginError');
-    const name = input?.value.trim();
+// ============================================
+// ALERT SYSTEM
+// ============================================
+function showUpdateAlert() {
+    const updateAlert = document.getElementById('updateAlert');
+    if (updateAlert) updateAlert.classList.remove('hidden');
+}
+
+function applyUpdate() {
+    if (navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({ type: 'SKIP_WAITING' });
+    }
+    window.location.reload();
+}
+
+function showCustomAlert(msg, type = 'success') {
+    const alertContent = document.getElementById('alertContent');
+    const alertTitle = document.getElementById('alertTitle');
+    const alertIconWrapper = document.getElementById('alertIconWrapper');
+    const customAlert = document.getElementById('customAlert');
     
-    if (!name) {
-        if (error) error.style.display = 'block';
-        input?.classList.add('error');
-        setTimeout(() => input?.classList.remove('error'), 2000);
+    if (!customAlert || !alertContent || !alertTitle || !alertIconWrapper) {
+        console.error('Alert elements not found');
+        alert(msg);
         return;
     }
     
-    currentUser = name;
-    localStorage.setItem('current_operator', name);
-    updateUserDisplay();
+    if (autoCloseTimer) {
+        clearTimeout(autoCloseTimer);
+        autoCloseTimer = null;
+    }
     
-    simulateLoading(() => {
-        showScreen('homeScreen');
-        updateHomeStats();
-    });
-}
-
-function logoutOperator() {
-    if (confirm('Yakin ingin keluar?')) {
-        localStorage.removeItem('current_operator');
-        localStorage.removeItem('draft_turbine');
-        currentUser = '';
-        currentInput = {};
-        location.reload();
+    alertTitle.textContent = type === 'success' ? 'Berhasil' : 'Error';
+    const alertMessage = document.getElementById('alertMessage');
+    if (alertMessage) alertMessage.innerText = msg;
+    
+    alertContent.className = 'alert-content ' + type;
+    
+    if (type === 'success') {
+        alertIconWrapper.innerHTML = `
+            <div class="alert-icon-bg"></div>
+            <svg class="alert-icon-svg" viewBox="0 0 52 52">
+                <circle cx="26" cy="26" r="25"></circle>
+                <path d="M14.1 27.2l7.1 7.2 16.7-16.8"></path>
+            </svg>
+        `;
+    } else {
+        alertIconWrapper.innerHTML = `
+            <div class="alert-icon-bg" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);"></div>
+            <svg class="alert-icon-svg" viewBox="0 0 52 52" style="stroke: #ef4444;">
+                <circle cx="26" cy="26" r="25"></circle>
+                <path d="M16 16 L36 36 M36 16 L16 36"></path>
+            </svg>
+        `;
+    }
+    
+    customAlert.classList.remove('hidden');
+    
+    if (type === 'success') {
+        autoCloseTimer = setTimeout(() => {
+            if (!customAlert.classList.contains('hidden')) closeAlert();
+        }, 3000);
     }
 }
 
-function updateUserDisplay() {
-    const ids = ['displayUserName', 'tpmHeaderUser', 'tpmInputUser', 'areaListUser', 'paramUser'];
-    ids.forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.textContent = currentUser;
-    });
+function closeAlert() {
+    const customAlert = document.getElementById('customAlert');
+    if (customAlert) customAlert.classList.add('hidden');
+    if (autoCloseTimer) {
+        clearTimeout(autoCloseTimer);
+        autoCloseTimer = null;
+    }
 }
 
 // ============================================
 // NAVIGATION
 // ============================================
-
-function showScreen(screenId) {
+function navigateTo(screenId) {
+    // Check auth for protected screens
+    const protectedScreens = ['homeScreen', 'areaListScreen', 'paramScreen', 'tpmScreen', 'tpmInputScreen'];
+    if (protectedScreens.includes(screenId) && !requireAuth()) {
+        return;
+    }
+    
     document.querySelectorAll('.screen').forEach(s => {
         s.classList.remove('active');
         s.style.animation = 'none';
+        setTimeout(() => s.style.animation = '', 10);
     });
     
-    const target = document.getElementById(screenId);
-    if (target) {
-        target.classList.add('active');
-        // Trigger reflow
-        void target.offsetWidth;
-        target.style.animation = '';
-    }
-}
-
-function navigateTo(screenId) {
-    showScreen(screenId);
-    
-    if (screenId === 'areaListScreen') {
-        fetchLastData();
+    const targetScreen = document.getElementById(screenId);
+    if (targetScreen) {
+        targetScreen.classList.add('active');
+        if (screenId === 'areaListScreen') {
+            fetchLastData();
+            updateOverallProgress();
+        } else if (screenId === 'homeScreen') {
+            loadUserStats();
+        }
     }
 }
 
 // ============================================
-// ALERTS
+// LOGSHEET FUNCTIONS
 // ============================================
-
-function showCustomAlert(msg, type = 'success') {
-    const alert = document.getElementById('customAlert');
-    const content = document.getElementById('alertContent');
-    const title = document.getElementById('alertTitle');
-    const message = document.getElementById('alertMessage');
-    const iconWrapper = document.getElementById('alertIconWrapper');
-    
-    if (!alert) return;
-    
-    if (autoCloseTimer) clearTimeout(autoCloseTimer);
-    
-    if (title) title.textContent = type === 'success' ? 'Berhasil' : 'Error';
-    if (message) message.textContent = msg;
-    
-    if (content) {
-        content.className = 'alert-content ' + type;
-    }
-    
-    // Update icon
-    if (iconWrapper) {
-        const color = type === 'success' ? 'var(--success)' : 'var(--danger)';
-        iconWrapper.innerHTML = `
-            <div class="alert-icon-bg" style="background: ${color}; opacity: 0.2;"></div>
-            <svg class="alert-icon-svg" viewBox="0 0 52 52" style="stroke: ${color};">
-                <circle cx="26" cy="26" r="25"/>
-                ${type === 'success' 
-                    ? '<path d="M14.1 27.2l7.1 7.2 16.7-16.8"/>' 
-                    : '<path d="M16 16 L36 36 M36 16 L16 36"/>'}
-            </svg>
-        `;
-    }
-    
-    alert.classList.remove('hidden');
-    
-    if (type === 'success') {
-        autoCloseTimer = setTimeout(closeAlert, 2500);
-    }
-}
-
-function closeAlert() {
-    const alert = document.getElementById('customAlert');
-    if (alert) alert.classList.add('hidden');
-}
-
-function showUpdateAlert() {
-    const alert = document.getElementById('updateAlert');
-    if (alert) alert.classList.remove('hidden');
-}
-
-function applyUpdate() {
-    location.reload();
-}
-
-// ============================================
-// HOME STATS
-// ============================================
-
-function updateHomeStats() {
-    const totalAreas = Object.keys(AREAS).length;
-    let completed = 0;
-    
-    Object.entries(AREAS).forEach(([areaName, params]) => {
-        const filled = currentInput[areaName] ? Object.keys(currentInput[areaName]).length : 0;
-        if (filled === params.length) completed++;
-    });
-    
-    const percent = Math.round((completed / totalAreas) * 100);
-    
-    const statProgress = document.getElementById('statProgress');
-    const statAreas = document.getElementById('statAreas');
-    
-    if (statProgress) statProgress.textContent = percent + '%';
-    if (statAreas) statAreas.textContent = `${completed}/${totalAreas}`;
-}
-
-// ============================================
-// LOGSHEET - AREA LIST
-// ============================================
-
 function fetchLastData() {
-    renderAreaList();
-    
-    // Try to fetch from server
-    const callbackName = 'cb_' + Date.now();
+    updateStatusIndicator(false);
+    const timeout = setTimeout(() => renderMenu(), 8000);
+    const callbackName = 'jsonp_' + Date.now();
     const script = document.createElement('script');
     
     window[callbackName] = (data) => {
+        clearTimeout(timeout);
         lastData = data;
-        renderAreaList();
+        updateStatusIndicator(true);
         delete window[callbackName];
         script.remove();
+        renderMenu();
     };
     
     script.src = `${GAS_URL}?callback=${callbackName}`;
-    script.onerror = () => script.remove();
-    
-    setTimeout(() => {
-        if (script.parentNode) script.remove();
-    }, 5000);
-    
+    script.onerror = () => {
+        clearTimeout(timeout);
+        renderMenu();
+    };
     document.body.appendChild(script);
 }
 
-function renderAreaList() {
-    const container = document.getElementById('areaList');
-    if (!container) return;
+function updateStatusIndicator(isOnline) {
+    const statusPill = document.getElementById('statusPill');
+    if (!statusPill) return;
+    const statusText = statusPill.querySelector('.status-text');
+    
+    if (isOnline) {
+        statusPill.className = 'status-indicator online';
+        if (statusText) statusText.textContent = 'Online';
+    } else {
+        statusPill.className = 'status-indicator offline';
+        if (statusText) statusText.textContent = 'Offline';
+    }
+}
+
+function renderMenu() {
+    const list = document.getElementById('areaList');
+    if (!list) return;
     
     const totalAreas = Object.keys(AREAS).length;
-    let completed = 0;
+    let completedAreas = 0;
     let html = '';
     
     Object.entries(AREAS).forEach(([areaName, params]) => {
         const filled = currentInput[areaName] ? Object.keys(currentInput[areaName]).length : 0;
         const total = params.length;
         const percent = Math.round((filled / total) * 100);
-        const isDone = filled === total;
-        if (isDone) completed++;
+        const isCompleted = filled === total && total > 0;
+        if (isCompleted) completedAreas++;
         
-        const circumference = 2 * Math.PI * 16;
-        const offset = circumference - (percent / 100) * circumference;
+        const circumference = 2 * Math.PI * 18;
+        const strokeDashoffset = circumference - (percent / 100) * circumference;
         
         html += `
-            <div class="area-item" onclick="openArea('${areaName}')" style="border-left-color: ${isDone ? 'var(--success)' : percent > 0 ? 'var(--warning)' : 'transparent'};">
-                <div class="area-icon" style="background: ${isDone ? 'rgba(16, 185, 129, 0.2)' : 'var(--bg-secondary)'}; color: ${isDone ? 'var(--success)' : 'var(--primary)'};">
-                    <svg width="20" height="20" viewBox="0 0 40 40">
-                        <circle cx="20" cy="20" r="16" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="3"/>
-                        <circle cx="20" cy="20" r="16" fill="none" stroke="${isDone ? 'var(--success)' : 'var(--primary)'}" 
-                                stroke-width="3" stroke-dasharray="${circumference}" stroke-dashoffset="${offset}" 
-                                transform="rotate(-90 20 20)" stroke-linecap="round"/>
-                        <text x="20" y="24" text-anchor="middle" font-size="10" font-weight="bold" fill="${isDone ? 'var(--success)' : 'var(--text)'}">${filled}</text>
+            <div class="area-item ${isCompleted ? 'completed' : ''}" onclick="openArea('${areaName}')">
+                <div class="area-progress-ring">
+                    <svg width="40" height="40" viewBox="0 0 40 40">
+                        <circle cx="20" cy="20" r="18" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="3"/>
+                        <circle cx="20" cy="20" r="18" fill="none" stroke="${isCompleted ? '#10b981' : 'var(--primary)'}" 
+                                stroke-width="3" stroke-linecap="round" stroke-dasharray="${circumference}" 
+                                stroke-dashoffset="${strokeDashoffset}" transform="rotate(-90 20 20)"/>
+                        <text x="20" y="24" text-anchor="middle" font-size="10" font-weight="bold" fill="${isCompleted ? '#10b981' : 'var(--text-primary)'}">${filled}</text>
                     </svg>
                 </div>
                 <div class="area-info">
                     <div class="area-name">${areaName}</div>
-                    <div class="area-meta">${filled} dari ${total} parameter</div>
+                    <div class="area-meta">${filled} dari ${total} parameter diisi</div>
                 </div>
-                <svg class="item-arrow" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M9 18l6-6-6-6"/>
-                </svg>
+                <div class="area-status">${isCompleted ? '✓' : '❯'}</div>
             </div>
         `;
     });
     
-    container.innerHTML = html;
+    list.innerHTML = html;
     
-    // Update progress
-    const percent = Math.round((completed / totalAreas) * 100);
+    const hasData = Object.keys(currentInput).length > 0;
+    const submitBtn = document.getElementById('submitBtn');
+    if (submitBtn) submitBtn.style.display = hasData ? 'flex' : 'none';
+    
+    updateOverallProgressUI(completedAreas, totalAreas);
+}
+
+function updateOverallProgress() {
+    const totalAreas = Object.keys(AREAS).length;
+    let completedAreas = 0;
+    Object.entries(AREAS).forEach(([areaName, params]) => {
+        const filled = currentInput[areaName] ? Object.keys(currentInput[areaName]).length : 0;
+        if (filled === params.length && filled > 0) completedAreas++;
+    });
+    updateOverallProgressUI(completedAreas, totalAreas);
+}
+
+function updateOverallProgressUI(completedAreas, totalAreas) {
+    const percent = Math.round((completedAreas / totalAreas) * 100);
     const progressText = document.getElementById('progressText');
     const overallPercent = document.getElementById('overallPercent');
-    const progressBar = document.getElementById('overallProgressBar');
-    const submitBtn = document.getElementById('submitBtn');
+    const overallProgressBar = document.getElementById('overallProgressBar');
     
     if (progressText) progressText.textContent = `${percent}% Complete`;
     if (overallPercent) overallPercent.textContent = `${percent}%`;
-    if (progressBar) progressBar.style.width = `${percent}%`;
-    if (submitBtn) submitBtn.style.display = Object.keys(currentInput).length > 0 ? 'flex' : 'none';
+    if (overallProgressBar) overallProgressBar.style.width = `${percent}%`;
 }
 
 function openArea(areaName) {
+    if (!requireAuth()) return;
+    
     activeArea = areaName;
     activeIdx = 0;
-    showScreen('paramScreen');
-    
-    const areaNameEl = document.getElementById('currentAreaName');
-    if (areaNameEl) areaNameEl.textContent = areaName;
-    
-    renderParamDots();
+    navigateTo('paramScreen');
+    const currentAreaName = document.getElementById('currentAreaName');
+    if (currentAreaName) currentAreaName.textContent = areaName;
+    renderProgressDots();
     showStep();
 }
 
-// ============================================
-// PARAMETER INPUT
-// ============================================
-
-function renderParamDots() {
+function renderProgressDots() {
     const container = document.getElementById('progressDots');
     if (!container) return;
-    
     const total = AREAS[activeArea].length;
     let html = '';
-    
     for (let i = 0; i < total; i++) {
-        const isFilled = currentInput[activeArea]?.[AREAS[activeArea][i]];
+        const isFilled = currentInput[activeArea] && currentInput[activeArea][AREAS[activeArea][i]];
         const isActive = i === activeIdx;
-        let cls = 'dot';
-        if (isActive) cls += ' active';
-        else if (isFilled) cls += ' filled';
-        
-        html += `<div class="${cls}" onclick="jumpToStep(${i})"></div>`;
+        const className = isActive ? 'active' : (isFilled ? 'filled' : '');
+        html += `<div class="progress-dot ${className}" onclick="jumpToStep(${i})"></div>`;
     }
-    
     container.innerHTML = html;
 }
 
 function jumpToStep(index) {
-    saveCurrentValue();
+    const input = document.getElementById('valInput');
+    if (input) {
+        const currentVal = input.value.trim();
+        if (currentVal) {
+            const fullLabel = AREAS[activeArea][activeIdx];
+            if (!currentInput[activeArea]) currentInput[activeArea] = {};
+            currentInput[activeArea][fullLabel] = currentVal;
+            localStorage.setItem('draft_turbine', JSON.stringify(currentInput));
+        }
+    }
     activeIdx = index;
     showStep();
-    renderParamDots();
+    renderProgressDots();
 }
 
-function saveCurrentValue() {
-    const input = document.getElementById('valInput');
-    if (!input) return;
-    
-    const val = input.value.trim();
-    const label = AREAS[activeArea][activeIdx];
-    
-    if (val) {
-        if (!currentInput[activeArea]) currentInput[activeArea] = {};
-        currentInput[activeArea][label] = val;
-        localStorage.setItem('draft_turbine', JSON.stringify(currentInput));
+function detectInputType(label) {
+    for (const [type, config] of Object.entries(INPUT_TYPES)) {
+        for (const pattern of config.patterns) {
+            if (label.includes(pattern)) {
+                return {
+                    type: 'select',
+                    options: config.options[pattern],
+                    pattern: pattern
+                };
+            }
+        }
     }
+    return { type: 'text', options: null, pattern: null };
+}
+
+function getUnit(label) {
+    const match = label.match(/\(([^)]+)\)/);
+    return match ? match[1] : "";
+}
+
+function getParamName(label) {
+    return label.split(' (')[0];
 }
 
 function showStep() {
-    const label = AREAS[activeArea][activeIdx];
+    const fullLabel = AREAS[activeArea][activeIdx];
     const total = AREAS[activeArea].length;
-    const inputType = detectInputType(label);
+    const inputType = detectInputType(fullLabel);
     currentInputType = inputType.type;
     
-    // Update UI
     const stepInfo = document.getElementById('stepInfo');
     const areaProgress = document.getElementById('areaProgress');
     const labelInput = document.getElementById('labelInput');
-    const lastTime = document.getElementById('lastTimeLabel');
-    const prevVal = document.getElementById('prevValDisplay');
+    const lastTimeLabel = document.getElementById('lastTimeLabel');
+    const prevValDisplay = document.getElementById('prevValDisplay');
+    const inputFieldContainer = document.getElementById('inputFieldContainer');
     const unitDisplay = document.getElementById('unitDisplay');
-    const container = document.getElementById('inputFieldContainer');
+    const mainInputWrapper = document.getElementById('mainInputWrapper');
     
-    if (stepInfo) stepInfo.textContent = `${activeIdx + 1}/${total}`;
+    if (stepInfo) stepInfo.textContent = `Step ${activeIdx + 1}/${total}`;
     if (areaProgress) areaProgress.textContent = `${activeIdx + 1}/${total}`;
-    if (labelInput) labelInput.textContent = getParamName(label);
-    if (lastTime) lastTime.textContent = lastData._lastTime || '--:--';
-    if (prevVal) prevVal.textContent = lastData[label] || '--';
+    if (labelInput) labelInput.textContent = getParamName(fullLabel);
+    if (lastTimeLabel) lastTimeLabel.textContent = lastData._lastTime || '--:--';
+    if (prevValDisplay) prevValDisplay.textContent = lastData[fullLabel] || '--';
     
-    // Render input
-    const currentVal = currentInput[activeArea]?.[label] || '';
+    const currentValue = (currentInput[activeArea] && currentInput[activeArea][fullLabel]) || '';
     
     if (inputType.type === 'select') {
-        let options = `<option value="" disabled ${!currentVal ? 'selected' : ''}>Pilih...</option>`;
+        let optionsHtml = `<option value="" disabled ${!currentValue ? 'selected' : ''}>Pilih Status...</option>`;
         inputType.options.forEach(opt => {
-            options += `<option value="${opt}" ${currentVal === opt ? 'selected' : ''}>${opt}</option>`;
+            const selected = currentValue === opt ? 'selected' : '';
+            optionsHtml += `<option value="${opt}" ${selected}>${opt}</option>`;
         });
         
-        if (container) {
-            container.innerHTML = `<select id="valInput" style="width: 100%; background: transparent; border: none; color: var(--text); font-size: 1.125rem; font-weight: 600; outline: none;">${options}</select>`;
+        if (inputFieldContainer) {
+            inputFieldContainer.innerHTML = `
+                <div class="select-wrapper">
+                    <select id="valInput" class="status-select">${optionsHtml}</select>
+                    <div class="select-arrow">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M6 9l6 6 6-6"/>
+                        </svg>
+                    </div>
+                </div>
+            `;
         }
         if (unitDisplay) unitDisplay.style.display = 'none';
+        if (mainInputWrapper) mainInputWrapper.classList.add('has-select');
     } else {
-        if (container) {
-            container.innerHTML = `<input type="text" id="valInput" inputmode="decimal" placeholder="0.00" value="${currentVal}" autocomplete="off" style="width: 100%; background: transparent; border: none; color: var(--text); font-size: 1.25rem; font-weight: 600; outline: none;">`;
+        if (inputFieldContainer) {
+            inputFieldContainer.innerHTML = `<input type="text" id="valInput" inputmode="decimal" placeholder="0.00" value="${currentValue}" autocomplete="off">`;
         }
         if (unitDisplay) {
-            unitDisplay.textContent = getUnit(label) || '--';
+            unitDisplay.textContent = getUnit(fullLabel) || '--';
             unitDisplay.style.display = 'flex';
         }
+        if (mainInputWrapper) mainInputWrapper.classList.remove('has-select');
     }
     
-    renderParamDots();
+    const dots = document.querySelectorAll('.progress-dot');
+    dots.forEach((dot, idx) => {
+        dot.className = 'progress-dot';
+        if (idx === activeIdx) dot.classList.add('active');
+        else if (currentInput[activeArea] && currentInput[activeArea][AREAS[activeArea][idx]]) {
+            dot.classList.add('filled');
+        }
+    });
     
-    // Focus
     setTimeout(() => {
         const input = document.getElementById('valInput');
         if (input && inputType.type === 'text') {
@@ -581,14 +865,23 @@ function showStep() {
 }
 
 function saveStep() {
-    saveCurrentValue();
+    const input = document.getElementById('valInput');
+    if (!input) return;
+    const val = input.value.trim();
+    const fullLabel = AREAS[activeArea][activeIdx];
+    
+    if (val) {
+        if (!currentInput[activeArea]) currentInput[activeArea] = {};
+        currentInput[activeArea][fullLabel] = val;
+        localStorage.setItem('draft_turbine', JSON.stringify(currentInput));
+    }
     
     if (activeIdx < AREAS[activeArea].length - 1) {
         activeIdx++;
         showStep();
     } else {
-        showCustomAlert('Area selesai!', 'success');
-        setTimeout(() => navigateTo('areaListScreen'), 1000);
+        showCustomAlert(`Area ${activeArea} selesai diisi!`, 'success');
+        setTimeout(() => navigateTo('areaListScreen'), 1500);
     }
 }
 
@@ -601,41 +894,71 @@ function goBack() {
     }
 }
 
-// ============================================
-// TPM FUNCTIONS
-// ============================================
+async function sendToSheet() {
+    if (!requireAuth()) return;
+    
+    const loader = document.getElementById('loader');
+    const loaderText = document.querySelector('.loader-text h3');
+    
+    if (loader) loader.style.display = 'flex';
+    if (loaderText) loaderText.textContent = 'Mengirim Data...';
+    
+    // Add user info to data
+    const finalData = {
+        operator: currentUser ? currentUser.name : 'Unknown',
+        operatorId: currentUser ? currentUser.id : 'Unknown',
+        timestamp: new Date().toISOString(),
+        ...Object.values(currentInput).reduce((acc, obj) => Object.assign(acc, obj), {})
+    };
+    
+    try {
+        await fetch(GAS_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(finalData)
+        });
+        
+        showCustomAlert('✓ Data berhasil dikirim ke sistem!', 'success');
+        currentInput = {};
+        localStorage.removeItem('draft_turbine');
+        setTimeout(() => navigateTo('homeScreen'), 2000);
+    } catch (error) {
+        showCustomAlert('Gagal mengirim data. Periksa koneksi internet.', 'error');
+    } finally {
+        if (loader) loader.style.display = 'none';
+    }
+}
 
+// ============================================
+// TPM FUNCTIONS (Total Productive Maintenance)
+// ============================================
 function openTPMArea(areaName) {
+    if (!requireAuth()) return;
+    
     activeTPMArea = areaName;
     currentTPMPhoto = null;
     currentTPMStatus = '';
     
     // Reset form
     const preview = document.getElementById('tpmPhotoPreview');
-    const section = document.getElementById('tpmPhotoSection');
-    const notes = document.getElementById('tpmNotes');
-    const action = document.getElementById('tpmAction');
-    
     if (preview) {
-        preview.innerHTML = `
-            <div class="photo-placeholder">
-                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-                    <circle cx="12" cy="13" r="4"/>
-                </svg>
-                <span>Ambil Foto</span>
-            </div>
-        `;
+        preview.innerHTML = '<span style="color: var(--text-muted); font-size: 3rem;">📷</span>';
+        preview.closest('.tpm-photo-section').classList.remove('has-photo');
     }
-    if (section) section.classList.remove('has-photo');
+    
+    const notes = document.getElementById('tpmNotes');
     if (notes) notes.value = '';
+    
+    const action = document.getElementById('tpmAction');
     if (action) action.value = '';
     
-    // Reset buttons
-    document.querySelectorAll('.status-btn').forEach(btn => {
-        btn.className = 'status-btn';
+    // Reset status buttons
+    document.querySelectorAll('.tpm-status-btn').forEach(btn => {
+        btn.className = 'tpm-status-btn';
     });
     
+    // Set title
     const title = document.getElementById('tpmInputTitle');
     if (title) title.textContent = areaName;
     
@@ -647,20 +970,19 @@ function handleTPMPhoto(event) {
     if (!file) return;
     
     if (file.size > 5 * 1024 * 1024) {
-        showCustomAlert('Maksimal 5MB', 'error');
+        showCustomAlert('Ukuran foto terlalu besar. Maksimal 5MB.', 'error');
         return;
     }
     
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = function(e) {
         currentTPMPhoto = e.target.result;
         const preview = document.getElementById('tpmPhotoPreview');
-        const section = document.getElementById('tpmPhotoSection');
-        
         if (preview) {
-            preview.innerHTML = `<img src="${currentTPMPhoto}" alt="Preview">`;
+            preview.innerHTML = `<img src="${currentTPMPhoto}" style="width: 100%; height: 100%; object-fit: cover; border-radius: var(--radius-md);">`;
+            preview.closest('.tpm-photo-section').classList.add('has-photo');
         }
-        if (section) section.classList.add('has-photo');
+        showCustomAlert('Foto berhasil diambil!', 'success');
     };
     reader.readAsDataURL(file);
 }
@@ -668,131 +990,127 @@ function handleTPMPhoto(event) {
 function selectTPMStatus(status) {
     currentTPMStatus = status;
     
-    document.querySelectorAll('.status-btn').forEach(btn => {
-        btn.className = 'status-btn';
-    });
+    // Reset all buttons
+    const btnNormal = document.getElementById('btnNormal');
+    const btnAbnormal = document.getElementById('btnAbnormal');
+    const btnOff = document.getElementById('btnOff');
     
-    const btn = document.getElementById('btn' + status.charAt(0).toUpperCase() + status.slice(1));
-    if (btn) {
-        btn.classList.add('active', `active-${status}`);
+    if (btnNormal) btnNormal.className = 'tpm-status-btn';
+    if (btnAbnormal) btnAbnormal.className = 'tpm-status-btn';
+    if (btnOff) btnOff.className = 'tpm-status-btn';
+    
+    // Activate selected
+    if (status === 'normal' && btnNormal) {
+        btnNormal.classList.add('active-normal');
+    } else if (status === 'abnormal' && btnAbnormal) {
+        btnAbnormal.classList.add('active-abnormal');
+    } else if (status === 'off' && btnOff) {
+        btnOff.classList.add('active-off');
+    }
+    
+    // Warning if abnormal/off without photo
+    if ((status === 'abnormal' || status === 'off') && !currentTPMPhoto) {
+        setTimeout(() => {
+            showCustomAlert('⚠️ Kondisi abnormal/off wajib didokumentasikan dengan foto!', 'error');
+        }, 100);
     }
 }
 
 async function submitTPMData() {
+    if (!requireAuth()) return;
+    
     const notes = document.getElementById('tpmNotes')?.value || '';
     const action = document.getElementById('tpmAction')?.value || '';
     
+    // Validasi
     if (!currentTPMStatus) {
-        showCustomAlert('Pilih status!', 'error');
-        return;
-    }
-    if (!currentTPMPhoto) {
-        showCustomAlert('Ambil foto!', 'error');
-        return;
-    }
-    if (!action) {
-        showCustomAlert('Pilih tindakan!', 'error');
+        showCustomAlert('Pilih status kondisi terlebih dahulu!', 'error');
         return;
     }
     
-    const data = {
+    if (!currentTPMPhoto) {
+        showCustomAlert('Ambil foto dokumentasi terlebih dahulu!', 'error');
+        return;
+    }
+    
+    if (!action) {
+        showCustomAlert('Pilih tindakan yang dilakukan!', 'error');
+        return;
+    }
+    
+    // Show loading
+    const loader = document.getElementById('loader');
+    const loaderText = document.querySelector('.loader-text h3');
+    const loaderDesc = document.querySelector('.loader-text p');
+    
+    if (loader) loader.style.display = 'flex';
+    if (loaderText) loaderText.textContent = 'Mengupload TPM...';
+    if (loaderDesc) loaderDesc.textContent = 'Sedang mengupload foto ke Google Drive...';
+    
+    // Prepare data with user info
+    const tpmData = {
         type: 'TPM',
         area: activeTPMArea,
         status: currentTPMStatus,
-        notes,
-        action,
+        notes: notes,
+        action: action,
         photo: currentTPMPhoto,
-        user: currentUser,
+        operator: currentUser ? currentUser.name : 'Unknown',
+        operatorId: currentUser ? currentUser.id : 'Unknown',
         timestamp: new Date().toISOString()
     };
     
-    showCustomAlert('Data TPM tersimpan!', 'success');
-    
-    setTimeout(() => {
-        navigateTo('tpmScreen');
-    }, 1500);
-}
-
-// ============================================
-// SEND DATA
-// ============================================
-
-async function sendToSheet() {
-    const btn = document.getElementById('submitBtn');
-    if (btn) btn.disabled = true;
-    
-    const data = {
-        Operator: currentUser,
-        Timestamp: new Date().toLocaleString('id-ID', {timeZone: 'Asia/Jakarta'})
-    };
-    
-    Object.values(currentInput).forEach(area => {
-        Object.assign(data, area);
-    });
-    
     try {
-        await fetch(GAS_URL, {
+        const response = await fetch(GAS_URL, {
             method: 'POST',
             mode: 'no-cors',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(data)
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(tpmData)
         });
         
-        showCustomAlert('Data terkirim!', 'success');
-        currentInput = {};
-        localStorage.removeItem('draft_turbine');
+        // Save to local history (without base64 to save space)
+        let tpmHistory = JSON.parse(localStorage.getItem('tpm_history') || '[]');
+        tpmHistory.push({
+            ...tpmData,
+            photo: '[UPLOADED_TO_DRIVE]'
+        });
+        localStorage.setItem('tpm_history', JSON.stringify(tpmHistory));
         
-        setTimeout(() => navigateTo('homeScreen'), 1500);
-    } catch (e) {
-        showCustomAlert('Gagal mengirim', 'error');
+        showCustomAlert(`✓ Data TPM ${activeTPMArea} berhasil disimpan! Foto tersimpan di Google Drive.`, 'success');
+        
+        // Reset
+        currentTPMPhoto = null;
+        currentTPMStatus = '';
+        
+        setTimeout(() => {
+            navigateTo('tpmScreen');
+        }, 2000);
+        
+    } catch (error) {
+        console.error('TPM Error:', error);
+        
+        // Save offline for retry
+        let offlineTPM = JSON.parse(localStorage.getItem('tpm_offline') || '[]');
+        offlineTPM.push(tpmData);
+        localStorage.setItem('tpm_offline', JSON.stringify(offlineTPM));
+        
+        showCustomAlert('Gagal mengupload. Data disimpan lokal untuk diupload nanti.', 'error');
     } finally {
-        if (btn) btn.disabled = false;
+        if (loader) loader.style.display = 'none';
     }
 }
 
 // ============================================
-// UTILITIES
+// KEYBOARD EVENTS
 // ============================================
-
-function detectInputType(label) {
-    for (const [type, config] of Object.entries(INPUT_TYPES)) {
-        for (const pattern of config.patterns) {
-            if (label.includes(pattern)) {
-                return {
-                    type: 'select',
-                    options: config.options[pattern]
-                };
-            }
-        }
+document.addEventListener('keydown', (e) => {
+    const paramScreen = document.getElementById('paramScreen');
+    if (!paramScreen || !paramScreen.classList.contains('active')) return;
+    
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        if (currentInputType !== 'select') saveStep();
+    } else if (e.key === 'Escape') {
+        goBack();
     }
-    return {type: 'text', options: null};
-}
-
-function getUnit(label) {
-    const match = label.match(/\(([^)]+)\)/);
-    return match ? match[1] : '';
-}
-
-function getParamName(label) {
-    return label.split(' (')[0];
-}
-
-function setupKeyboardHandlers() {
-    document.addEventListener('keydown', (e) => {
-        // Login
-        if (e.key === 'Enter' && document.getElementById('loginScreen')?.classList.contains('active')) {
-            loginOperator();
-            return;
-        }
-        
-        // Param screen
-        if (!document.getElementById('paramScreen')?.classList.contains('active')) return;
-        
-        if (e.key === 'Enter' && currentInputType !== 'select') {
-            e.preventDefault();
-            saveStep();
-        } else if (e.key === 'Escape') {
-            goBack();
-        }
-    });
-}
+});
