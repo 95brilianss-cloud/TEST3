@@ -1,11 +1,9 @@
 /* ============================================
    TURBINE LOGSHEET PRO - MOBILE FIRST CSS
    Version: 1.2.0
-   Optimized for 320px - 480px screens
    ============================================ */
 
 :root {
-    /* Colors */
     --primary: #0ea5e9;
     --primary-light: #38bdf8;
     --primary-dark: #0284c7;
@@ -23,7 +21,6 @@
     --text-secondary: #cbd5e1;
     --text-muted: #94a3b8;
     
-    /* Spacing - Mobile optimized */
     --xs: 4px;
     --sm: 8px;
     --md: 12px;
@@ -31,14 +28,12 @@
     --xl: 24px;
     --xxl: 32px;
     
-    /* Radius */
     --radius-sm: 8px;
     --radius-md: 12px;
     --radius-lg: 16px;
     --radius-xl: 20px;
     --radius-full: 9999px;
     
-    /* Safe area */
     --safe-top: env(safe-area-inset-top);
     --safe-bottom: env(safe-area-inset-bottom);
 }
@@ -67,7 +62,7 @@ body {
     -webkit-font-smoothing: antialiased;
 }
 
-/* App Container - Mobile Frame */
+/* App Container */
 .app-container {
     max-width: 100%;
     min-height: 100vh;
@@ -75,7 +70,7 @@ body {
     background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
 }
 
-/* Screens */
+/* Screens - PENTING: Pastikan loginScreen aktif pertama kali */
 .screen {
     display: none;
     min-height: 100vh;
@@ -85,6 +80,12 @@ body {
 
 .screen.active {
     display: block;
+}
+
+/* Login screen harus flex */
+#loginScreen.active {
+    display: flex !important;
+    flex-direction: column;
 }
 
 @keyframes fadeIn {
@@ -100,9 +101,7 @@ body {
     border: 1px solid var(--border);
 }
 
-/* ============================================
-   LOADER
-   ============================================ */
+/* Loader */
 .loader-overlay {
     position: fixed;
     inset: 0;
@@ -165,9 +164,7 @@ body {
     transition: width 0.3s ease;
 }
 
-/* ============================================
-   ALERTS
-   ============================================ */
+/* Alerts */
 .custom-alert {
     position: fixed;
     inset: 0;
@@ -183,7 +180,7 @@ body {
 }
 
 .custom-alert.hidden {
-    display: none;
+    display: none !important;
     opacity: 0;
 }
 
@@ -263,28 +260,7 @@ body {
     background: var(--success);
 }
 
-/* Update Alert */
-.update-icon-wrapper {
-    width: 56px;
-    height: 56px;
-    margin: 0 auto var(--lg);
-    background: var(--warning);
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.update-icon-wrapper svg {
-    width: 28px;
-    height: 28px;
-    stroke: white;
-    stroke-width: 2;
-}
-
-/* ============================================
-   BUTTONS
-   ============================================ */
+/* Buttons */
 .btn {
     display: inline-flex;
     align-items: center;
@@ -367,9 +343,7 @@ body {
     margin-top: var(--md);
 }
 
-/* ============================================
-   LOGIN SCREEN
-   ============================================ */
+/* Login Screen */
 .login-container {
     min-height: 100vh;
     display: flex;
@@ -508,9 +482,7 @@ body {
     font-weight: 600;
 }
 
-/* ============================================
-   HOME SCREEN
-   ============================================ */
+/* Home Screen */
 .home-header {
     padding: calc(var(--md) + var(--safe-top)) var(--lg) var(--xl);
     border-radius: 0 0 var(--radius-xl) var(--radius-xl);
@@ -690,9 +662,7 @@ body {
     color: var(--text-muted);
 }
 
-/* ============================================
-   SCREEN HEADER (Universal)
-   ============================================ */
+/* Screen Header */
 .screen-header {
     display: flex;
     align-items: center;
@@ -743,9 +713,7 @@ body {
     color: var(--primary-light);
 }
 
-/* ============================================
-   LIST SCREENS (TPM & Areas)
-   ============================================ */
+/* List Screens */
 .list-container,
 .areas-list {
     padding: var(--md) var(--lg);
@@ -853,9 +821,7 @@ body {
     width: 0%;
 }
 
-/* ============================================
-   TPM INPUT FORM
-   ============================================ */
+/* TPM Input Form */
 .form-container {
     padding: var(--md) var(--lg);
     padding-bottom: calc(var(--xl) + var(--safe-bottom));
@@ -941,11 +907,6 @@ body {
     transform: scale(0.95);
 }
 
-.status-btn.active {
-    border-color: currentColor;
-    background: rgba(255, 255, 255, 0.05);
-}
-
 .status-dot {
     width: 12px;
     height: 12px;
@@ -1026,9 +987,7 @@ body {
     color: var(--text-muted);
 }
 
-/* ============================================
-   PARAMETER INPUT SCREEN
-   ============================================ */
+/* Parameter Input Screen */
 .param-container {
     padding: var(--md) var(--lg);
     padding-bottom: calc(var(--xl) + var(--safe-bottom));
@@ -1167,7 +1126,7 @@ body {
     flex-wrap: wrap;
 }
 
-.dot {
+.progress-dot {
     width: 8px;
     height: 8px;
     border-radius: 50%;
@@ -1176,12 +1135,12 @@ body {
     transition: all 0.2s;
 }
 
-.dot.active {
+.progress-dot.active {
     background: var(--primary);
     transform: scale(1.2);
 }
 
-.dot.filled {
+.progress-dot.filled {
     background: var(--success);
 }
 
@@ -1191,9 +1150,7 @@ body {
     padding-bottom: var(--safe-bottom);
 }
 
-/* ============================================
-   RESPONSIVE - Small Phones
-   ============================================ */
+/* Responsive */
 @media (max-width: 360px) {
     :root {
         --lg: 12px;
@@ -1229,7 +1186,6 @@ body {
     }
 }
 
-/* Larger phones */
 @media (min-width: 400px) {
     .menu-grid {
         display: grid;
@@ -1247,7 +1203,6 @@ body {
     }
 }
 
-/* Tablet and up */
 @media (min-width: 480px) {
     .app-container {
         max-width: 480px;
@@ -1256,7 +1211,6 @@ body {
     }
 }
 
-/* Landscape */
 @media (max-height: 500px) and (orientation: landscape) {
     .login-container {
         padding-top: var(--lg);
@@ -1307,4 +1261,22 @@ html {
 .btn:disabled {
     opacity: 0.5;
     pointer-events: none;
+}
+
+/* Area progress ring */
+.area-progress-ring {
+    margin-right: var(--md);
+}
+
+.area-item.completed .area-name {
+    color: var(--success);
+}
+
+.area-status {
+    font-size: 1.25rem;
+    color: var(--text-muted);
+}
+
+.area-item.completed .area-status {
+    color: var(--success);
 }
