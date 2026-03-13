@@ -6,267 +6,74 @@
     <meta name="theme-color" content="#0f172a">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="description" content="Turbine Logsheet Professional - PT Petrokimia Gresik">
     
     <title>Turbine Logsheet Pro</title>
     
-    <link rel="stylesheet" href="style.css?v=1.1.0">
-    <link rel="manifest" href="manifest.json?v=1.1.0">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=1.2.0">
+    <link rel="manifest" href="manifest.json?v=1.2.0">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E⚡%3C/text%3E%3C/svg%3E">
     
-    <style>
-        /* PERBAIKAN: Logo Container */
-        .logo-container {
-            width: 140px;
-            height: 140px;
-            margin: 0 auto var(--space-lg);
-            position: relative;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 50%;
-            overflow: hidden;
-            background: rgba(255,255,255,0.05);
-            border: 2px solid rgba(255,255,255,0.1);
-        }
-        
-        .logo-container img {
-            width: 90%;
-            height: 90%;
-            object-fit: contain;
-            object-position: center;
-        }
-        
-        /* PERBAIKAN: Login Logo lebih kecil */
-        .login-logo {
-            width: 120px;
-            height: 120px;
-            margin-bottom: var(--space-lg);
-        }
-        
-        /* Login Styles */
-        .login-container { 
-            min-height: 100vh; 
-            display: flex; 
-            flex-direction: column; 
-            align-items: center; 
-            justify-content: center; 
-            padding: var(--space-lg); 
-            background: linear-gradient(135deg, var(--bg-gradient-start) 0%, var(--bg-gradient-end) 100%);
-        }
-        
-        .login-box {
-            width: 100%;
-            max-width: 340px;
-            padding: var(--space-xl);
-            text-align: center;
-        }
-        
-        .login-input { 
-            width: 100%; 
-            padding: var(--space-md); 
-            background: rgba(15, 23, 42, 0.6); 
-            border: 2px solid var(--border-color); 
-            border-radius: var(--radius-md); 
-            color: var(--text-primary); 
-            font-size: 1rem; 
-            text-align: center; 
-            font-family: inherit; 
-            outline: none; 
-            margin-bottom: var(--space-md); 
-        }
-        
-        .login-input:focus { 
-            border-color: var(--primary); 
-            box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1); 
-        }
-        
-        .login-error { 
-            color: #ef4444; 
-            font-size: 0.85rem; 
-            margin-bottom: var(--space-md); 
-            display: none; 
-        }
-        
-        /* User Badge */
-        .user-badge { 
-            margin-top: var(--space-md); 
-            padding: var(--space-sm) var(--space-md); 
-            background: rgba(14, 165, 233, 0.1); 
-            border: 1px solid rgba(14, 165, 233, 0.2); 
-            border-radius: var(--radius-full); 
-            display: inline-flex; 
-            align-items: center; 
-            gap: 8px; 
-            font-size: 0.9rem; 
-            color: var(--primary-light); 
-        }
-        
-        .user-pill { 
-            display: flex; 
-            align-items: center; 
-            gap: 6px; 
-            padding: 4px 10px; 
-            background: rgba(14, 165, 233, 0.1); 
-            border-radius: var(--radius-full); 
-            font-size: 0.75rem; 
-            color: var(--primary-light); 
-            max-width: 120px; 
-        }
-        
-        .user-pill span { 
-            max-width: 80px; 
-            overflow: hidden; 
-            text-overflow: ellipsis; 
-            white-space: nowrap; 
-        }
-        
-        /* Logout Button */
-        .logout-btn { 
-            position: absolute; 
-            top: var(--space-md); 
-            right: var(--space-md); 
-            width: 36px; 
-            height: 36px; 
-            background: rgba(239, 68, 68, 0.1); 
-            color: #ef4444; 
-            border: 1px solid rgba(239, 68, 68, 0.2); 
-            border-radius: var(--radius-md); 
-            cursor: pointer; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-        }
-        
-        /* Version Tag - PERBAIKAN */
-        .version-tag {
-            display: inline-block;
-            margin-top: var(--space-md);
-            padding: 4px 12px;
-            background: rgba(14, 165, 233, 0.1);
-            color: var(--primary-light);
-            border-radius: var(--radius-full);
-            font-size: 0.75rem;
-            font-weight: 600;
-            letter-spacing: 0.05em;
-        }
-        
-        /* TPM Styles */
-        .tpm-card { 
-            background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(217, 119, 6, 0.1) 100%) !important; 
-            border: 1px solid rgba(245, 158, 11, 0.2) !important; 
-            margin-top: var(--space-md); 
-        }
-        
-        .tpm-card .action-icon { 
-            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%) !important; 
-        }
-        
-        .tpm-area-item { 
-            display: flex; 
-            align-items: center; 
-            gap: var(--space-md); 
-            padding: var(--space-lg); 
-            background: var(--card-bg); 
-            border: 1px solid var(--border-color); 
-            border-radius: var(--radius-lg); 
-            cursor: pointer; 
-            margin-bottom: var(--space-md); 
-            border-left: 3px solid transparent; 
-        }
-        
-        .tpm-area-item:hover { 
-            border-left-color: #f59e0b; 
-            transform: translateX(4px); 
-        }
-        
-        .tpm-area-icon { 
-            width: 48px; 
-            height: 48px; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            background: rgba(245, 158, 11, 0.15); 
-            border-radius: var(--radius-md); 
-            color: #fbbf24; 
-            font-size: 1.5rem; 
-        }
-        
-        .tpm-status-btn { 
-            border: 2px solid var(--border-color); 
-            background: var(--surface); 
-            color: var(--text-primary); 
-            border-radius: var(--radius-md); 
-            cursor: pointer; 
-            font-weight: 600; 
-            padding: var(--space-md);
-            font-size: 0.85rem;
-        }
-        
-        .tpm-status-btn.active-normal { 
-            background: rgba(16, 185, 129, 0.2); 
-            border-color: #10b981; 
-            color: #10b981; 
-        }
-        
-        .tpm-status-btn.active-abnormal { 
-            background: rgba(245, 158, 11, 0.2); 
-            border-color: #f59e0b; 
-            color: #fbbf24; 
-        }
-        
-        .tpm-status-btn.active-off { 
-            background: rgba(239, 68, 68, 0.2); 
-            border-color: #ef4444; 
-            color: #ef4444; 
-        }
-        
-        .tpm-photo-section {
-            border: 2px dashed var(--border-color);
-            transition: all 0.3s ease;
-        }
-        
-        .tpm-photo-section.has-photo {
-            border-color: #10b981;
-            border-style: solid;
-            background: rgba(16, 185, 129, 0.05);
-        }
-        
-        /* Responsive */
-        @media (max-width: 380px) {
-            .logo-container {
-                width: 120px;
-                height: 120px;
-            }
-        }
-    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
 
-<!-- Loading -->
+<!-- Loading Screen -->
 <div id="loader" class="loader-overlay">
     <div class="turbine-logo-large">
         <svg viewBox="0 0 100 100" class="turbine-spin">
+            <defs>
+                <linearGradient id="turbineGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color:#06b6d4;stop-opacity:1" />
+                    <stop offset="100%" style="stop-color:#3b82f6;stop-opacity:1" />
+                </linearGradient>
+            </defs>
             <circle cx="50" cy="50" r="8" fill="#1e293b"/>
-            <ellipse cx="50" cy="25" rx="6" ry="20" fill="#06b6d4"/>
-            <ellipse cx="72" cy="38" rx="6" ry="20" fill="#06b6d4" transform="rotate(60 72 38)"/>
-            <ellipse cx="72" cy="62" rx="6" ry="20" fill="#06b6d4" transform="rotate(120 72 62)"/>
-            <ellipse cx="50" cy="75" rx="6" ry="20" fill="#06b6d4"/>
-            <ellipse cx="28" cy="62" rx="6" ry="20" fill="#06b6d4" transform="rotate(60 28 62)"/>
-            <ellipse cx="28" cy="38" rx="6" ry="20" fill="#06b6d4" transform="rotate(120 28 38)"/>
+            <g id="turbine-blades">
+                <ellipse cx="50" cy="25" rx="6" ry="20" fill="url(#turbineGrad)"/>
+                <ellipse cx="72" cy="38" rx="6" ry="20" fill="url(#turbineGrad)" transform="rotate(60 72 38)"/>
+                <ellipse cx="72" cy="62" rx="6" ry="20" fill="url(#turbineGrad)" transform="rotate(120 72 62)"/>
+                <ellipse cx="50" cy="75" rx="6" ry="20" fill="url(#turbineGrad)"/>
+                <ellipse cx="28" cy="62" rx="6" ry="20" fill="url(#turbineGrad)" transform="rotate(60 28 62)"/>
+                <ellipse cx="28" cy="38" rx="6" ry="20" fill="url(#turbineGrad)" transform="rotate(120 28 38)"/>
+            </g>
+            <circle cx="50" cy="50" r="45" fill="none" stroke="#06b6d4" stroke-width="2" stroke-dasharray="10 5" opacity="0.3"/>
         </svg>
     </div>
     <div class="loader-text">
-        <h3 id="loaderText">Loading...</h3>
+        <h3>Turbine System</h3>
+        <p>Sinkronisasi Data...</p>
         <div class="progress-bar-loader">
             <div class="fill" id="loaderProgress"></div>
         </div>
     </div>
 </div>
 
-<!-- Alert -->
+<!-- Update Alert -->
+<div id="updateAlert" class="custom-alert hidden">
+    <div class="alert-content">
+        <div class="update-icon-wrapper">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+            </svg>
+        </div>
+        <h3>Update Tersedia</h3>
+        <p>Versi baru aplikasi telah tersedia dengan peningkatan performa dan fitur.</p>
+        <button class="alert-btn" onclick="applyUpdate()">Update Sekarang</button>
+    </div>
+</div>
+
+<!-- Custom Alert -->
 <div id="customAlert" class="custom-alert hidden">
     <div class="alert-content" id="alertContent">
+        <div class="confetti"></div>
+        <div class="confetti"></div>
+        <div class="confetti"></div>
+        <div class="confetti"></div>
+        <div class="confetti"></div>
+        
         <div class="alert-icon-wrapper" id="alertIconWrapper">
             <div class="alert-icon-bg"></div>
             <svg class="alert-icon-svg" viewBox="0 0 52 52">
@@ -274,61 +81,60 @@
                 <path d="M14.1 27.2l7.1 7.2 16.7-16.8"></path>
             </svg>
         </div>
+        
         <h3 id="alertTitle">Berhasil</h3>
         <p id="alertMessage">Data berhasil dikirim!</p>
-        <button class="alert-btn success" onclick="closeAlert()">OK</button>
+        <button class="alert-btn success" onclick="closeAlert()">Oke</button>
     </div>
 </div>
 
 <div class="app-container">
+    
     <!-- LOGIN SCREEN -->
-    <div id="loginScreen" class="screen active">
+    <div id="loginScreen" class="screen">
         <div class="login-container">
-            <div class="logo-container login-logo">
-                <img src="logo.png" alt="Logo">
+            <div class="logo-container animated">
+                <img src="logo.png" alt="Logo" id="loginLogo">
             </div>
             
-            <div class="glass-strong login-box">
-                <h2 style="margin-bottom: var(--space-sm); color: var(--text-primary);">Selamat Datang</h2>
-                <p style="color: var(--text-secondary); margin-bottom: var(--space-lg); font-size: 0.9rem;">Masukkan nama Anda untuk melanjutkan</p>
+            <div class="login-box glass-strong">
+                <h2 class="login-title">Selamat Datang</h2>
+                <p class="login-subtitle">Masukkan nama Anda untuk melanjutkan</p>
                 
-                <input type="text" id="operatorName" class="login-input" placeholder="Nama Lengkap" autocomplete="name" onkeypress="if(event.key==='Enter')loginOperator()">
+                <input type="text" id="operatorName" class="login-input" placeholder="Nama Lengkap" autocomplete="name">
                 <p id="loginError" class="login-error">Nama operator wajib diisi!</p>
                 
-                <button class="btn btn-primary" onclick="loginOperator()" style="width: 100%;">
+                <button class="btn btn-primary btn-full" onclick="loginOperator()">
                     <span>Masuk</span>
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-left: 8px;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M13.8 12H3"/>
                     </svg>
                 </button>
             </div>
             
-            <div style="margin-top: var(--space-xl); text-align: center;">
-                <p style="color: var(--text-muted); font-size: 0.75rem;">Turbine Logsheet Pro</p>
-                <span class="version-tag">v<span id="versionDisplay">...</span></span>
+            <div class="login-footer">
+                <p>Turbine Logsheet Pro</p>
+                <span class="version-tag">v<span id="versionDisplay">1.2.0</span></span>
             </div>
         </div>
     </div>
 
     <!-- HOME SCREEN -->
     <div id="homeScreen" class="screen">
-        <div class="home-hero glass-strong" style="position: relative; padding: var(--space-xl);">
-            <!-- Logout Button -->
-            <button onclick="logoutOperator()" class="logout-btn" title="Ganti Operator">
+        <div class="home-hero glass-strong">
+            <button class="logout-btn" onclick="logoutOperator()" title="Ganti Operator">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>
                 </svg>
             </button>
 
-            <!-- Logo -->
-            <div class="logo-container">
-                <img src="logo.png" alt="3B Asam Sulfat Utilitas">
+            <div class="logo-container animated">
+                <img src="logo.png" alt="3B Asam Sulfat Utilitas" id="mainLogo">
             </div>
             
             <h1 class="app-title">Turbine Logsheet</h1>
             <p class="app-subtitle">Sistem Monitoring Operasional</p>
             
-            <!-- User Badge -->
             <div class="user-badge">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
@@ -337,17 +143,15 @@
                 <span id="displayUserName">Operator</span>
             </div>
             
-            <!-- Company Badge -->
-            <div class="company-badge" style="margin-top: var(--space-md);">
-                <span style="font-weight: 600; color: var(--primary-light);">PT Petrokimia Gresik</span>
-                <span style="opacity: 0.5; margin: 0 8px;">•</span>
-                <span style="color: var(--text-secondary);">Unit III B</span>
+            <div class="company-badge">
+                <span class="company-name">PT Petrokimia Gresik</span>
+                <span class="divider">•</span>
+                <span class="unit-name">Unit III B</span>
             </div>
         </div>
 
-        <div class="quick-actions" style="padding: var(--space-md);">
-            <!-- Logsheet Card -->
-            <div class="action-card primary" onclick="navigateTo('areaListScreen')" style="margin-bottom: var(--space-md);">
+        <div class="quick-actions">
+            <div class="action-card primary" onclick="navigateTo('areaListScreen')">
                 <div class="action-icon">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -359,12 +163,11 @@
                 </div>
                 <div class="action-content">
                     <h3>Mulai Logsheet</h3>
-                    <p style="font-size: 0.875rem; color: var(--text-muted); margin: 0;">Input data operasional</p>
+                    <p>Input data operasional turbin</p>
                 </div>
                 <div class="action-arrow">→</div>
             </div>
 
-            <!-- TPM Card -->
             <div class="action-card tpm-card" onclick="navigateTo('tpmScreen')">
                 <div class="action-icon">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -373,7 +176,7 @@
                 </div>
                 <div class="action-content">
                     <h3>Mulai TPM</h3>
-                    <p style="font-size: 0.875rem; color: var(--text-muted); margin: 0;">Total Productive Maintenance</p>
+                    <p>Total Productive Maintenance</p>
                 </div>
                 <div class="action-arrow">→</div>
             </div>
@@ -390,52 +193,48 @@
             </button>
             <div class="header-title">
                 <h2>TPM Areas</h2>
-                <span style="font-size: 0.75rem; color: var(--text-muted);">Pilih area maintenance</span>
+                <span class="header-subtitle">Pilih area maintenance</span>
             </div>
             <div class="user-pill">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                    <circle cx="12" cy="7" r="4"/>
-                </svg>
                 <span id="tpmHeaderUser">-</span>
             </div>
         </div>
 
-        <div style="padding: var(--space-md);">
+        <div class="tpm-list-container">
             <div class="tpm-area-item" onclick="openTPMArea('Area #6200')">
                 <div class="tpm-area-icon">🔧</div>
-                <div style="flex: 1;">
-                    <div style="font-weight: 600; color: var(--text-primary);">Area #6200</div>
-                    <div style="font-size: 0.875rem; color: var(--text-muted);">Peralatan & Sistem Unit 6200</div>
+                <div class="tpm-area-info">
+                    <div class="tpm-area-name">Area #6200</div>
+                    <div class="tpm-area-desc">Peralatan & Sistem Unit 6200</div>
                 </div>
-                <span style="color: var(--text-muted);">›</span>
+                <div class="tpm-area-arrow">›</div>
             </div>
 
             <div class="tpm-area-item" onclick="openTPMArea('Area Turbin')">
                 <div class="tpm-area-icon">⚙️</div>
-                <div style="flex: 1;">
-                    <div style="font-weight: 600; color: var(--text-primary);">Area Turbin</div>
-                    <div style="font-size: 0.875rem; color: var(--text-muted);">Maintenance Sistem Turbin</div>
+                <div class="tpm-area-info">
+                    <div class="tpm-area-name">Area Turbin</div>
+                    <div class="tpm-area-desc">Maintenance Sistem Turbin</div>
                 </div>
-                <span style="color: var(--text-muted);">›</span>
+                <div class="tpm-area-arrow">›</div>
             </div>
 
             <div class="tpm-area-item" onclick="openTPMArea('Area Cooling Tower')">
                 <div class="tpm-area-icon">🗼</div>
-                <div style="flex: 1;">
-                    <div style="font-weight: 600; color: var(--text-primary);">Area Cooling Tower</div>
-                    <div style="font-size: 0.875rem; color: var(--text-muted);">Sistem Pendingin & Ventilasi</div>
+                <div class="tpm-area-info">
+                    <div class="tpm-area-name">Area Cooling Tower</div>
+                    <div class="tpm-area-desc">Sistem Pendingin & Ventilasi</div>
                 </div>
-                <span style="color: var(--text-muted);">›</span>
+                <div class="tpm-area-arrow">›</div>
             </div>
 
             <div class="tpm-area-item" onclick="openTPMArea('Area Compressor')">
                 <div class="tpm-area-icon">🌬️</div>
-                <div style="flex: 1;">
-                    <div style="font-weight: 600; color: var(--text-primary);">Area Compressor</div>
-                    <div style="font-size: 0.875rem; color: var(--text-muted);">Sistem Kompresor & Angin</div>
+                <div class="tpm-area-info">
+                    <div class="tpm-area-name">Area Compressor</div>
+                    <div class="tpm-area-desc">Sistem Kompresor & Angin</div>
                 </div>
-                <span style="color: var(--text-muted);">›</span>
+                <div class="tpm-area-arrow">›</div>
             </div>
         </div>
     </div>
@@ -450,47 +249,59 @@
             </button>
             <div class="header-title">
                 <h2 id="tpmInputTitle">TPM Check</h2>
-                <span style="font-size: 0.75rem; color: var(--text-muted);">Dokumentasi kondisi</span>
+                <span class="header-subtitle">Dokumentasi kondisi</span>
             </div>
             <div class="user-pill">
                 <span id="tpmInputUser">-</span>
             </div>
         </div>
 
-        <div style="padding: var(--space-md); padding-bottom: 100px;">
+        <div class="tpm-input-container">
             <input type="file" id="tpmCamera" accept="image/*" capture="environment" style="display: none;" onchange="handleTPMPhoto(event)">
             
-            <div class="tpm-photo-section glass" id="tpmPhotoSection" style="padding: var(--space-lg); text-align: center; margin-bottom: var(--space-lg);">
-                <div id="tpmPhotoPreview" style="width: 100%; height: 200px; background: var(--surface); border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; margin-bottom: var(--space-md); overflow: hidden;">
-                    <span style="font-size: 3rem;">📷</span>
+            <div class="tpm-photo-section glass" id="tpmPhotoSection">
+                <div class="tpm-photo-preview" id="tpmPhotoPreview">
+                    <span class="camera-icon">📷</span>
                 </div>
-                <button class="btn btn-primary" onclick="document.getElementById('tpmCamera').click()" style="width: 100%; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 8px;">
+                <button class="btn btn-primary btn-camera" onclick="document.getElementById('tpmCamera').click()">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
                         <circle cx="12" cy="13" r="4"/>
                     </svg>
-                    Ambil Foto
+                    <span>Ambil Foto</span>
                 </button>
-                <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: var(--space-sm);">Dokumentasikan kondisi area ini</p>
+                <p class="photo-hint">Dokumentasikan kondisi area ini</p>
             </div>
 
-            <div class="glass" style="padding: var(--space-lg); margin-bottom: var(--space-lg);">
-                <h3 style="margin-bottom: var(--space-md); color: var(--text-primary);">Checklist Kondisi</h3>
+            <div class="tpm-checklist glass">
+                <h3 class="checklist-title">Checklist Kondisi</h3>
                 
-                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-sm); margin-bottom: var(--space-md);">
-                    <button class="tpm-status-btn" id="btnNormal" onclick="selectTPMStatus('normal')">✅ Normal</button>
-                    <button class="tpm-status-btn" id="btnAbnormal" onclick="selectTPMStatus('abnormal')">⚠️ Abnormal</button>
-                    <button class="tpm-status-btn" id="btnOff" onclick="selectTPMStatus('off')">⛔ Off</button>
+                <div class="form-group">
+                    <label class="form-label">Status Umum Area</label>
+                    <div class="tpm-status-options">
+                        <button class="tpm-status-btn" id="btnNormal" onclick="selectTPMStatus('normal')" type="button">
+                            <span class="status-icon">✓</span>
+                            <span>Normal</span>
+                        </button>
+                        <button class="tpm-status-btn" id="btnAbnormal" onclick="selectTPMStatus('abnormal')" type="button">
+                            <span class="status-icon">⚠</span>
+                            <span>Abnormal</span>
+                        </button>
+                        <button class="tpm-status-btn" id="btnOff" onclick="selectTPMStatus('off')" type="button">
+                            <span class="status-icon">✕</span>
+                            <span>Off</span>
+                        </button>
+                    </div>
                 </div>
 
-                <div style="margin-bottom: var(--space-md);">
-                    <label style="display: block; margin-bottom: var(--space-sm); color: var(--text-secondary); font-size: 0.9rem;">Keterangan / Temuan</label>
-                    <textarea id="tpmNotes" rows="3" style="width: 100%; padding: var(--space-md); background: rgba(15, 23, 42, 0.6); border: 2px solid var(--border-color); border-radius: var(--radius-md); color: var(--text-primary); font-family: inherit; resize: vertical;" placeholder="Masukkan keterangan kondisi..."></textarea>
+                <div class="form-group">
+                    <label class="form-label" for="tpmNotes">Keterangan / Temuan</label>
+                    <textarea id="tpmNotes" class="form-textarea" rows="3" placeholder="Masukkan keterangan kondisi..."></textarea>
                 </div>
 
-                <div>
-                    <label style="display: block; margin-bottom: var(--space-sm); color: var(--text-secondary); font-size: 0.9rem;">Tindakan yang Dilakukan</label>
-                    <select id="tpmAction" style="width: 100%; padding: var(--space-md); background: rgba(15, 23, 42, 0.6); border: 2px solid var(--border-color); border-radius: var(--radius-md); color: var(--text-primary); font-family: inherit; font-size: 1rem;">
+                <div class="form-group">
+                    <label class="form-label" for="tpmAction">Tindakan yang Dilakukan</label>
+                    <select id="tpmAction" class="form-select">
                         <option value="">Pilih Tindakan...</option>
                         <option value="Checking/Routine">Checking/Routine</option>
                         <option value="Cleaning">Cleaning</option>
@@ -501,16 +312,16 @@
                 </div>
             </div>
 
-            <button class="btn btn-primary" onclick="submitTPMData()" style="width: 100%; padding: var(--space-lg); font-size: 1.1rem; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); box-shadow: 0 4px 20px rgba(245, 158, 11, 0.3); position: fixed; bottom: calc(var(--space-xl) + env(safe-area-inset-bottom)); left: var(--space-md); right: var(--space-md); max-width: calc(480px - 2 * var(--space-md)); margin: 0 auto; z-index: 50;">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 8px;">
+            <button class="btn btn-primary btn-submit-tpm" onclick="submitTPMData()">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <polyline points="20 6 9 17 4 12"/>
                 </svg>
-                Simpan Data TPM
+                <span>Simpan Data TPM</span>
             </button>
         </div>
     </div>
 
-    <!-- AREA LIST (LOGSHEET) -->
+    <!-- AREA LIST SCREEN (LOGSHEET) -->
     <div id="areaListScreen" class="screen">
         <div class="header-nav glass">
             <button class="btn btn-icon" onclick="navigateTo('homeScreen')">
@@ -520,35 +331,35 @@
             </button>
             <div class="header-title">
                 <h2>Logsheet Areas</h2>
-                <span style="font-size: 0.75rem; color: var(--text-muted);" id="progressText">0% Complete</span>
+                <span class="header-subtitle" id="progressText">0% Complete</span>
             </div>
             <div class="user-pill">
                 <span id="areaListUser">-</span>
             </div>
         </div>
 
-        <div class="overall-progress glass" style="margin: var(--space-md); padding: var(--space-md);">
-            <div style="display: flex; justify-content: space-between; font-size: 0.875rem; margin-bottom: var(--space-sm);">
-                <span>Progress</span>
+        <div class="overall-progress glass">
+            <div class="progress-info">
+                <span>Overall Progress</span>
                 <span id="overallPercent">0%</span>
             </div>
-            <div style="width: 100%; height: 8px; background: var(--surface); border-radius: var(--radius-full); overflow: hidden;">
-                <div id="overallProgressBar" style="height: 100%; background: linear-gradient(90deg, var(--primary), var(--primary-light)); width: 0%; transition: width 0.5s;"></div>
+            <div class="progress-bar large">
+                <div class="progress-fill" id="overallProgressBar"></div>
             </div>
         </div>
 
-        <div class="area-list-container" id="areaList" style="padding: var(--space-md); padding-bottom: 100px;"></div>
+        <div class="area-list-container" id="areaList"></div>
 
-        <button class="btn btn-primary btn-floating" id="submitBtn" style="display: none; position: fixed; bottom: calc(var(--space-xl) + env(safe-area-inset-bottom)); left: var(--space-md); right: var(--space-md); max-width: calc(480px - 2 * var(--space-md)); margin: 0 auto; z-index: 50; box-shadow: var(--shadow-glow);" onclick="sendToSheet()">
+        <button class="btn btn-primary btn-floating" id="submitBtn" onclick="sendToSheet()">
             <span>Kirim Data</span>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-left: 8px;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="22" y1="2" x2="11" y2="13"/>
                 <polygon points="22 2 15 22 11 13 2 9 22 2"/>
             </svg>
         </button>
     </div>
 
-    <!-- PARAMETER INPUT -->
+    <!-- PARAMETER INPUT SCREEN -->
     <div id="paramScreen" class="screen">
         <div class="header-nav glass">
             <button class="btn btn-icon" onclick="goBack()">
@@ -564,46 +375,57 @@
             </div>
         </div>
 
-        <div class="input-container glass-strong" style="padding: var(--space-xl); margin: var(--space-md);">
-            <div class="area-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-md);">
-                <span class="area-label" id="currentAreaName" style="font-size: 0.875rem; font-weight: 600; color: var(--primary-light); text-transform: uppercase;">Area</span>
-                <div class="progress-badge" style="padding: 4px 12px; background: var(--surface); border-radius: var(--radius-full); font-size: 0.875rem; color: var(--text-secondary);">
+        <div class="input-container glass-strong">
+            <div class="area-header">
+                <span class="area-label" id="currentAreaName">Area</span>
+                <div class="progress-badge">
                     <span id="areaProgress">1/10</span>
                 </div>
             </div>
 
-            <h2 class="param-title" id="labelInput" style="font-size: 1.25rem; font-weight: 600; color: var(--text-primary); margin-bottom: var(--space-xl);">Parameter</h2>
+            <h2 class="param-title" id="labelInput">Parameter</h2>
             
-            <div class="input-group" style="margin-bottom: var(--space-xl);">
-                <div class="input-wrapper" id="mainInputWrapper" style="display: flex; align-items: center; background: rgba(15, 23, 42, 0.6); border: 2px solid var(--border-color); border-radius: var(--radius-lg); overflow: hidden; min-height: 64px;">
-                    <div id="inputFieldContainer" style="flex: 1; padding: var(--space-md);"></div>
-                    <div class="input-unit" id="unitDisplay" style="padding: 0 var(--space-lg); background: linear-gradient(135deg, rgba(14, 165, 233, 0.15), rgba(59, 130, 246, 0.1)); color: var(--primary-light); font-weight: 700; font-size: 0.9rem; border-left: 2px solid var(--border-color); min-height: 64px; display: flex; align-items: center;">--</div>
+            <div class="input-group">
+                <div class="input-wrapper" id="mainInputWrapper">
+                    <div id="inputFieldContainer"></div>
+                    <div class="input-unit" id="unitDisplay">--</div>
                 </div>
             </div>
 
-            <div class="reference-data" style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md); margin-bottom: var(--space-xl); padding: var(--space-lg); background: var(--surface); border-radius: var(--radius-md);">
-                <div>
-                    <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 4px;">Nilai Terakhir</div>
-                    <div id="prevValDisplay" style="font-size: 1.1rem; font-weight: 700; color: var(--text-secondary);">--</div>
+            <div class="reference-data">
+                <div class="ref-item">
+                    <span class="ref-label">Nilai Terakhir</span>
+                    <span class="ref-value" id="prevValDisplay">--</span>
                 </div>
-                <div>
-                    <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 4px;">Waktu Update</div>
-                    <div id="lastTimeLabel" style="font-size: 1.1rem; font-weight: 700; color: var(--text-secondary);">--:--</div>
+                <div class="ref-item">
+                    <span class="ref-label">Waktu Update</span>
+                    <span class="ref-value" id="lastTimeLabel">--:--</span>
                 </div>
             </div>
 
-            <div class="action-buttons" style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md);">
-                <button class="btn btn-secondary" onclick="goBack()">Kembali</button>
-                <button class="btn btn-primary" onclick="saveStep()">Simpan</button>
+            <div class="action-buttons">
+                <button class="btn btn-secondary" onclick="goBack()">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M19 12H5M12 19l-7-7 7-7"/>
+                    </svg>
+                    <span>Kembali</span>
+                </button>
+                <button class="btn btn-primary" onclick="saveStep()">
+                    <span>Simpan</span>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M5 12h14M12 5l7 7-7 7"/>
+                    </svg>
+                </button>
             </div>
         </div>
 
-        <div class="param-progress" style="padding: var(--space-md);">
-            <div class="progress-dots" id="progressDots" style="display: flex; justify-content: center; gap: 8px;"></div>
+        <div class="param-progress">
+            <div class="progress-dots" id="progressDots"></div>
         </div>
     </div>
+
 </div>
 
-<script src="app.js?v=1.1.0"></script>
+<script src="app.js?v=1.2.0"></script>
 </body>
 </html>
