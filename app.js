@@ -1,7 +1,7 @@
 // ============================================
 // TURBINE LOGSHEET PRO - VERSION CONTROL
 // ============================================
-const APP_VERSION = '1.1.1';
+const APP_VERSION = '1.1.2';
 
 // ============================================
 // AUTHENTICATION SYSTEM
@@ -9,8 +9,8 @@ const APP_VERSION = '1.1.1';
 const AUTH_CONFIG = {
     SESSION_KEY: 'turbine_session',
     USER_KEY: 'turbine_user',
-    SESSION_DURATION: 8 * 60 * 60 * 1000, // 8 hours in milliseconds
-    REMEMBER_ME_DURATION: 30 * 24 * 60 * 60 * 1000 // 30 days
+    SESSION_DURATION: 8 * 60 * 60 * 1000,
+    REMEMBER_ME_DURATION: 30 * 24 * 60 * 60 * 1000
 };
 
 let currentUser = null;
@@ -46,34 +46,24 @@ if ('serviceWorker' in navigator) {
 // ============================================
 // AUTHENTICATION FUNCTIONS
 // ============================================
-
-/**
- * Initialize authentication on app load
- */
 function initAuth() {
     const session = getSession();
     
     if (session && isSessionValid(session)) {
-        // Auto-login with existing session
         currentUser = session.user;
         isAuthenticated = true;
         updateUIForAuthenticatedUser();
         
-        // Check if we need to redirect from login screen
         const loginScreen = document.getElementById('loginScreen');
         if (loginScreen && loginScreen.classList.contains('active')) {
             navigateTo('homeScreen');
         }
     } else {
-        // Clear invalid session and show login
         clearSession();
         showLoginScreen();
     }
 }
 
-/**
- * Get current session from storage
- */
 function getSession() {
     try {
         const sessionData = localStorage.getItem(AUTH_CONFIG.SESSION_KEY);
@@ -84,9 +74,6 @@ function getSession() {
     }
 }
 
-/**
- * Save session to storage
- */
 function saveSession(user, rememberMe = false) {
     const duration = rememberMe ? AUTH_CONFIG.REMEMBER_ME_DURATION : AUTH_CONFIG.SESSION_DURATION;
     const session = {
@@ -104,17 +91,11 @@ function saveSession(user, rememberMe = false) {
     }
 }
 
-/**
- * Check if session is still valid
- */
 function isSessionValid(session) {
     if (!session || !session.expiresAt) return false;
     return Date.now() < session.expiresAt;
 }
 
-/**
- * Clear session from storage
- */
 function clearSession() {
     localStorage.removeItem(AUTH_CONFIG.SESSION_KEY);
     localStorage.removeItem(AUTH_CONFIG.USER_KEY);
@@ -122,13 +103,10 @@ function clearSession() {
     isAuthenticated = false;
 }
 
-/**
- * Handle operator login
- */
 function loginOperator() {
     const nameInput = document.getElementById('operatorName');
     const errorMsg = document.getElementById('loginError');
-    const rememberCheckbox = document.getElementById('rememberMe'); // Optional checkbox
+    const rememberCheckbox = document.getElementById('rememberMe');
     
     if (!nameInput) {
         console.error('Login input not found');
@@ -137,7 +115,6 @@ function loginOperator() {
     
     const operatorName = nameInput.value.trim();
     
-    // Validation
     if (!operatorName) {
         if (errorMsg) {
             errorMsg.textContent = 'Nama operator wajib diisi!';
@@ -158,11 +135,9 @@ function loginOperator() {
         return;
     }
     
-    // Clear error state
     if (errorMsg) errorMsg.style.display = 'none';
     nameInput.classList.remove('error');
     
-    // Create user object
     const user = {
         name: operatorName,
         id: 'OP-' + Date.now().toString(36).toUpperCase(),
@@ -170,16 +145,13 @@ function loginOperator() {
         role: 'operator'
     };
     
-    // Save session
     const rememberMe = rememberCheckbox ? rememberCheckbox.checked : false;
     saveSession(user, rememberMe);
     currentUser = user;
     isAuthenticated = true;
     
-    // Show success animation
     showCustomAlert(`Selamat datang, ${operatorName}!`, 'success');
     
-    // Update UI and navigate
     setTimeout(() => {
         updateUIForAuthenticatedUser();
         navigateTo('homeScreen');
@@ -187,20 +159,14 @@ function loginOperator() {
     }, 800);
 }
 
-/**
- * Handle operator logout
- */
 function logoutOperator() {
-    // Confirm logout
     if (confirm('Apakah Anda yakin ingin keluar?')) {
-        // Save any pending data before logout
         if (Object.keys(currentInput).length > 0) {
             localStorage.setItem('draft_turbine_backup', JSON.stringify(currentInput));
         }
         
         clearSession();
         
-        // Reset UI
         const nameInput = document.getElementById('operatorName');
         if (nameInput) nameInput.value = '';
         
@@ -209,13 +175,9 @@ function logoutOperator() {
     }
 }
 
-/**
- * Show login screen
- */
 function showLoginScreen() {
     navigateTo('loginScreen');
     
-    // Check for saved username
     const savedUser = localStorage.getItem(AUTH_CONFIG.USER_KEY);
     if (savedUser) {
         try {
@@ -230,13 +192,9 @@ function showLoginScreen() {
     }
 }
 
-/**
- * Update all UI elements for authenticated user
- */
 function updateUIForAuthenticatedUser() {
     if (!currentUser) return;
     
-    // Update all user name displays
     const userElements = [
         'displayUserName',
         'tpmHeaderUser',
@@ -251,9 +209,6 @@ function updateUIForAuthenticatedUser() {
     });
 }
 
-/**
- * Check authentication status (call before protected actions)
- */
 function requireAuth() {
     if (!isAuthenticated || !isSessionValid(getSession())) {
         clearSession();
@@ -264,11 +219,7 @@ function requireAuth() {
     return true;
 }
 
-/**
- * Load user statistics
- */
 function loadUserStats() {
-    // Calculate user's progress
     const totalAreas = Object.keys(AREAS).length;
     let completedAreas = 0;
     
@@ -277,7 +228,6 @@ function loadUserStats() {
         if (filled === params.length && filled > 0) completedAreas++;
     });
     
-    // Update stats display
     const statProgress = document.getElementById('statProgress');
     const statAreas = document.getElementById('statAreas');
     
@@ -465,11 +415,9 @@ window.addEventListener('DOMContentLoaded', () => {
         versionDisplay.textContent = APP_VERSION;
     }
     
-    // Initialize auth system
     initAuth();
-    
-    // Setup login input listeners
     setupLoginListeners();
+    setupTPMListeners(); // Setup TPM event listeners
     
     simulateLoading();
 });
@@ -477,19 +425,41 @@ window.addEventListener('DOMContentLoaded', () => {
 function setupLoginListeners() {
     const nameInput = document.getElementById('operatorName');
     if (nameInput) {
-        // Remove error state on input
         nameInput.addEventListener('input', () => {
             nameInput.classList.remove('error');
             const errorMsg = document.getElementById('loginError');
             if (errorMsg) errorMsg.style.display = 'none';
         });
         
-        // Allow Enter key to submit
         nameInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
                 loginOperator();
             }
         });
+    }
+}
+
+// Setup TPM event listeners
+function setupTPMListeners() {
+    // Setup TPM Camera input
+    const tpmCamera = document.getElementById('tpmCamera');
+    if (tpmCamera) {
+        tpmCamera.addEventListener('change', handleTPMPhoto);
+    }
+    
+    // Setup TPM Status buttons
+    const btnNormal = document.getElementById('btnNormal');
+    const btnAbnormal = document.getElementById('btnAbnormal');
+    const btnOff = document.getElementById('btnOff');
+    
+    if (btnNormal) {
+        btnNormal.addEventListener('click', () => selectTPMStatus('normal'));
+    }
+    if (btnAbnormal) {
+        btnAbnormal.addEventListener('click', () => selectTPMStatus('abnormal'));
+    }
+    if (btnOff) {
+        btnOff.addEventListener('click', () => selectTPMStatus('off'));
     }
 }
 
@@ -505,7 +475,6 @@ function simulateLoading() {
                 const loader = document.getElementById('loader');
                 if (loader) loader.style.display = 'none';
                 
-                // Only render menu if authenticated, otherwise stay on login
                 if (isAuthenticated) {
                     renderMenu();
                 }
@@ -593,7 +562,6 @@ function closeAlert() {
 // NAVIGATION
 // ============================================
 function navigateTo(screenId) {
-    // Check auth for protected screens
     const protectedScreens = ['homeScreen', 'areaListScreen', 'paramScreen', 'tpmScreen', 'tpmInputScreen'];
     if (protectedScreens.includes(screenId) && !requireAuth()) {
         return;
@@ -608,6 +576,12 @@ function navigateTo(screenId) {
     const targetScreen = document.getElementById(screenId);
     if (targetScreen) {
         targetScreen.classList.add('active');
+        
+        // Update user info when navigating to TPM screens
+        if (screenId === 'tpmScreen' || screenId === 'tpmInputScreen') {
+            updateTPMUserInfo();
+        }
+        
         if (screenId === 'areaListScreen') {
             fetchLastData();
             updateOverallProgress();
@@ -615,6 +589,17 @@ function navigateTo(screenId) {
             loadUserStats();
         }
     }
+}
+
+// Update TPM user info displays
+function updateTPMUserInfo() {
+    if (!currentUser) return;
+    
+    const tpmHeaderUser = document.getElementById('tpmHeaderUser');
+    const tpmInputUser = document.getElementById('tpmInputUser');
+    
+    if (tpmHeaderUser) tpmHeaderUser.textContent = currentUser.name;
+    if (tpmInputUser) tpmInputUser.textContent = currentUser.name;
 }
 
 // ============================================
@@ -903,7 +888,6 @@ async function sendToSheet() {
     if (loader) loader.style.display = 'flex';
     if (loaderText) loaderText.textContent = 'Mengirim Data...';
     
-    // Add user info to data
     const finalData = {
         operator: currentUser ? currentUser.name : 'Unknown',
         operatorId: currentUser ? currentUser.id : 'Unknown',
@@ -933,96 +917,195 @@ async function sendToSheet() {
 // ============================================
 // TPM FUNCTIONS (Total Productive Maintenance)
 // ============================================
+
+/**
+ * Navigate to TPM List Screen
+ */
+function goToTPMScreen() {
+    if (!requireAuth()) return;
+    navigateTo('tpmScreen');
+}
+
+/**
+ * Open specific TPM Area for input
+ */
 function openTPMArea(areaName) {
     if (!requireAuth()) return;
+    
+    console.log('Opening TPM Area:', areaName); // Debug log
     
     activeTPMArea = areaName;
     currentTPMPhoto = null;
     currentTPMStatus = '';
     
     // Reset form
-    const preview = document.getElementById('tpmPhotoPreview');
-    if (preview) {
-        preview.innerHTML = '<span style="color: var(--text-muted); font-size: 3rem;">📷</span>';
-        preview.closest('.tpm-photo-section').classList.remove('has-photo');
-    }
-    
-    const notes = document.getElementById('tpmNotes');
-    if (notes) notes.value = '';
-    
-    const action = document.getElementById('tpmAction');
-    if (action) action.value = '';
-    
-    // Reset status buttons
-    document.querySelectorAll('.tpm-status-btn').forEach(btn => {
-        btn.className = 'tpm-status-btn';
-    });
+    resetTPMForm();
     
     // Set title
     const title = document.getElementById('tpmInputTitle');
     if (title) title.textContent = areaName;
     
+    // Update user display
+    updateTPMUserInfo();
+    
     navigateTo('tpmInputScreen');
 }
 
-function handleTPMPhoto(event) {
-    const file = event.target.files[0];
-    if (!file) return;
+/**
+ * Reset TPM form to default state
+ */
+function resetTPMForm() {
+    // Reset photo preview
+    const preview = document.getElementById('tpmPhotoPreview');
+    const photoSection = document.getElementById('tpmPhotoSection');
     
+    if (preview) {
+        preview.innerHTML = `
+            <div class="photo-placeholder">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                    <circle cx="12" cy="13" r="4"/>
+                </svg>
+                <span>Ambil Foto</span>
+            </div>
+        `;
+    }
+    
+    if (photoSection) {
+        photoSection.classList.remove('has-photo');
+    }
+    
+    // Reset notes
+    const notes = document.getElementById('tpmNotes');
+    if (notes) notes.value = '';
+    
+    // Reset action select
+    const action = document.getElementById('tpmAction');
+    if (action) action.value = '';
+    
+    // Reset status buttons
+    resetTPMStatusButtons();
+}
+
+/**
+ * Reset all TPM status buttons
+ */
+function resetTPMStatusButtons() {
+    const buttons = ['btnNormal', 'btnAbnormal', 'btnOff'];
+    const classes = ['active-normal', 'active-abnormal', 'active-off'];
+    
+    buttons.forEach((id, index) => {
+        const btn = document.getElementById(id);
+        if (btn) {
+            btn.className = 'status-btn';
+            // Remove all active classes
+            classes.forEach(cls => btn.classList.remove(cls));
+        }
+    });
+}
+
+/**
+ * Handle TPM Photo capture
+ */
+function handleTPMPhoto(event) {
+    console.log('Handle TPM Photo triggered'); // Debug log
+    
+    const file = event.target.files[0];
+    if (!file) {
+        console.log('No file selected');
+        return;
+    }
+    
+    console.log('File selected:', file.name, 'Size:', file.size);
+    
+    // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
         showCustomAlert('Ukuran foto terlalu besar. Maksimal 5MB.', 'error');
+        event.target.value = ''; // Reset input
+        return;
+    }
+    
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+        showCustomAlert('File harus berupa gambar.', 'error');
+        event.target.value = '';
         return;
     }
     
     const reader = new FileReader();
+    
     reader.onload = function(e) {
+        console.log('File loaded successfully');
         currentTPMPhoto = e.target.result;
+        
         const preview = document.getElementById('tpmPhotoPreview');
+        const photoSection = document.getElementById('tpmPhotoSection');
+        
         if (preview) {
-            preview.innerHTML = `<img src="${currentTPMPhoto}" style="width: 100%; height: 100%; object-fit: cover; border-radius: var(--radius-md);">`;
-            preview.closest('.tpm-photo-section').classList.add('has-photo');
+            preview.innerHTML = `<img src="${currentTPMPhoto}" style="width: 100%; height: 100%; object-fit: cover; border-radius: var(--radius-md);" alt="TPM Photo">`;
         }
+        
+        if (photoSection) {
+            photoSection.classList.add('has-photo');
+        }
+        
         showCustomAlert('Foto berhasil diambil!', 'success');
     };
+    
+    reader.onerror = function(e) {
+        console.error('Error reading file:', e);
+        showCustomAlert('Gagal membaca foto. Coba lagi.', 'error');
+    };
+    
     reader.readAsDataURL(file);
 }
 
+/**
+ * Select TPM Status
+ */
 function selectTPMStatus(status) {
+    console.log('Selecting TPM Status:', status); // Debug log
+    
     currentTPMStatus = status;
     
-    // Reset all buttons
-    const btnNormal = document.getElementById('btnNormal');
-    const btnAbnormal = document.getElementById('btnAbnormal');
-    const btnOff = document.getElementById('btnOff');
+    // Reset all buttons first
+    resetTPMStatusButtons();
     
-    if (btnNormal) btnNormal.className = 'tpm-status-btn';
-    if (btnAbnormal) btnAbnormal.className = 'tpm-status-btn';
-    if (btnOff) btnOff.className = 'tpm-status-btn';
+    // Activate selected button
+    const buttonMap = {
+        'normal': { id: 'btnNormal', class: 'active-normal' },
+        'abnormal': { id: 'btnAbnormal', class: 'active-abnormal' },
+        'off': { id: 'btnOff', class: 'active-off' }
+    };
     
-    // Activate selected
-    if (status === 'normal' && btnNormal) {
-        btnNormal.classList.add('active-normal');
-    } else if (status === 'abnormal' && btnAbnormal) {
-        btnAbnormal.classList.add('active-abnormal');
-    } else if (status === 'off' && btnOff) {
-        btnOff.classList.add('active-off');
+    const selected = buttonMap[status];
+    if (selected) {
+        const btn = document.getElementById(selected.id);
+        if (btn) {
+            btn.classList.add(selected.class);
+        }
     }
     
     // Warning if abnormal/off without photo
     if ((status === 'abnormal' || status === 'off') && !currentTPMPhoto) {
         setTimeout(() => {
-            showCustomAlert('⚠️ Kondisi abnormal/off wajib didokumentasikan dengan foto!', 'error');
+            showCustomAlert('⚠️ Kondisi abnormal/off wajib didokumentasikan dengan foto!', 'warning');
         }, 100);
     }
 }
 
+/**
+ * Submit TPM Data
+ */
 async function submitTPMData() {
     if (!requireAuth()) return;
     
-    const notes = document.getElementById('tpmNotes')?.value || '';
+    console.log('Submitting TPM Data...'); // Debug log
+    
+    const notes = document.getElementById('tpmNotes')?.value.trim() || '';
     const action = document.getElementById('tpmAction')?.value || '';
     
-    // Validasi
+    // Validation
     if (!currentTPMStatus) {
         showCustomAlert('Pilih status kondisi terlebih dahulu!', 'error');
         return;
@@ -1047,7 +1130,7 @@ async function submitTPMData() {
     if (loaderText) loaderText.textContent = 'Mengupload TPM...';
     if (loaderDesc) loaderDesc.textContent = 'Sedang mengupload foto ke Google Drive...';
     
-    // Prepare data with user info
+    // Prepare data
     const tpmData = {
         type: 'TPM',
         area: activeTPMArea,
@@ -1061,12 +1144,16 @@ async function submitTPMData() {
     };
     
     try {
+        console.log('Sending TPM data...'); // Debug log
+        
         const response = await fetch(GAS_URL, {
             method: 'POST',
             mode: 'no-cors',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(tpmData)
         });
+        
+        console.log('TPM data sent successfully'); // Debug log
         
         // Save to local history (without base64 to save space)
         let tpmHistory = JSON.parse(localStorage.getItem('tpm_history') || '[]');
@@ -1076,9 +1163,9 @@ async function submitTPMData() {
         });
         localStorage.setItem('tpm_history', JSON.stringify(tpmHistory));
         
-        showCustomAlert(`✓ Data TPM ${activeTPMArea} berhasil disimpan! Foto tersimpan di Google Drive.`, 'success');
+        showCustomAlert(`✓ Data TPM ${activeTPMArea} berhasil disimpan!`, 'success');
         
-        // Reset
+        // Reset form
         currentTPMPhoto = null;
         currentTPMStatus = '';
         
