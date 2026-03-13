@@ -1,15 +1,14 @@
 // ============================================
 // TURBINE LOGSHEET PRO - VERSION CONTROL
 // ============================================
-const APP_VERSION = '1.0.5'; // Update: Modern alert with SVG animation & confetti
+const APP_VERSION = '1.0.6';
 
-// Service Worker Registration dengan Update Handling
+// Service Worker Registration
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
         navigator.serviceWorker.register(`./sw.js?v=${APP_VERSION}`)
             .then(registration => {
                 console.log('SW registered:', registration);
-                
                 registration.addEventListener('updatefound', () => {
                     const newWorker = registration.installing;
                     newWorker.addEventListener('statechange', () => {
@@ -30,8 +29,10 @@ if ('serviceWorker' in navigator) {
 }
 
 // ============================================
-// INPUT TYPE CONFIGURATION
+// CONFIGURATION
 // ============================================
+const GAS_URL = "https://script.google.com/macros/s/AKfycbygjow8j5GADXUaN6Cvw0k5woNJj2rgNv0RQSsDMe4sajWzUMebz6RvayottCvmjzrC/exec";
+
 const INPUT_TYPES = {
     PUMP_STATUS: {
         patterns: ['(A/B)', '(ON/OFF)', '(On/Off)', '(Running/Stop)', '(Remote/Running/Stop)'],
@@ -45,22 +46,6 @@ const INPUT_TYPES = {
     }
 };
 
-function detectInputType(label) {
-    for (const [type, config] of Object.entries(INPUT_TYPES)) {
-        for (const pattern of config.patterns) {
-            if (label.includes(pattern)) {
-                return {
-                    type: 'select',
-                    options: config.options[pattern],
-                    pattern: pattern
-                };
-            }
-        }
-    }
-    return { type: 'text', options: null, pattern: null };
-}
-
-// Database Parameter Configuration
 const AREAS = {
     "Steam Inlet Turbine": [
         "MPS Inlet 30-TP-6101 PI-6114 (kg/cm2)", 
@@ -192,8 +177,7 @@ const AREAS = {
     ]
 };
 
-const GAS_URL = "https://script.google.com/macros/s/AKfycbx5ldkn8uUOplo2F2rKD9OOjARjIZCRIcPYhu_tK7UCWsR1DlnVFShQSuGoxCkW1t4i/exec";
-
+// State Variables
 let lastData = {};
 let currentInput = JSON.parse(localStorage.getItem('draft_turbine')) || {};
 let activeArea = "";
@@ -202,10 +186,17 @@ let totalParams = 0;
 let currentInputType = 'text';
 let autoCloseTimer = null;
 
+// TPM State
+let activeTPMArea = '';
+let currentTPMPhoto = null;
+let currentTPMStatus = '';
+
+// ============================================
+// INITIALIZATION
+// ============================================
 window.addEventListener('DOMContentLoaded', () => {
     totalParams = Object.values(AREAS).reduce((acc, arr) => acc + arr.length, 0);
     
-    // Hanya update jika elemen ada (defensive programming)
     const versionDisplay = document.getElementById('versionDisplay');
     if (versionDisplay) {
         versionDisplay.textContent = APP_VERSION;
@@ -217,7 +208,6 @@ window.addEventListener('DOMContentLoaded', () => {
 function simulateLoading() {
     let progress = 0;
     const loaderProgress = document.getElementById('loaderProgress');
-    
     const interval = setInterval(() => {
         progress += Math.random() * 30;
         if (progress >= 100) {
@@ -225,24 +215,20 @@ function simulateLoading() {
             clearInterval(interval);
             setTimeout(() => {
                 const loader = document.getElementById('loader');
-                if (loader) {
-                    loader.style.display = 'none';
-                }
+                if (loader) loader.style.display = 'none';
                 renderMenu();
             }, 500);
         }
-        
-        if (loaderProgress) {
-            loaderProgress.style.width = progress + '%';
-        }
+        if (loaderProgress) loaderProgress.style.width = progress + '%';
     }, 300);
 }
 
+// ============================================
+// ALERT SYSTEM
+// ============================================
 function showUpdateAlert() {
     const updateAlert = document.getElementById('updateAlert');
-    if (updateAlert) {
-        updateAlert.classList.remove('hidden');
-    }
+    if (updateAlert) updateAlert.classList.remove('hidden');
 }
 
 function applyUpdate() {
@@ -252,9 +238,6 @@ function applyUpdate() {
     window.location.reload();
 }
 
-// ============================================
-// ALERT SYSTEM WITH SVG ANIMATION & CONFETTI
-// ============================================
 function showCustomAlert(msg, type = 'success') {
     const alertContent = document.getElementById('alertContent');
     const alertTitle = document.getElementById('alertTitle');
@@ -263,27 +246,21 @@ function showCustomAlert(msg, type = 'success') {
     
     if (!customAlert || !alertContent || !alertTitle || !alertIconWrapper) {
         console.error('Alert elements not found');
-        alert(msg); // Fallback ke alert native
+        alert(msg);
         return;
     }
     
-    // Clear previous auto-close timer
     if (autoCloseTimer) {
         clearTimeout(autoCloseTimer);
         autoCloseTimer = null;
     }
     
-    // Set content
     alertTitle.textContent = type === 'success' ? 'Berhasil' : 'Error';
     const alertMessage = document.getElementById('alertMessage');
-    if (alertMessage) {
-        alertMessage.innerText = msg;
-    }
+    if (alertMessage) alertMessage.innerText = msg;
     
-    // Set styling class
     alertContent.className = 'alert-content ' + type;
     
-    // Set icon based on type
     if (type === 'success') {
         alertIconWrapper.innerHTML = `
             <div class="alert-icon-bg"></div>
@@ -302,33 +279,27 @@ function showCustomAlert(msg, type = 'success') {
         `;
     }
     
-    // Show alert
     customAlert.classList.remove('hidden');
     
-    // Auto-close for success after 3 seconds
     if (type === 'success') {
         autoCloseTimer = setTimeout(() => {
-            if (!customAlert.classList.contains('hidden')) {
-                closeAlert();
-            }
+            if (!customAlert.classList.contains('hidden')) closeAlert();
         }, 3000);
     }
 }
 
 function closeAlert() {
     const customAlert = document.getElementById('customAlert');
-    if (customAlert) {
-        customAlert.classList.add('hidden');
-    }
-    
-    // Clear timer if manually closed
+    if (customAlert) customAlert.classList.add('hidden');
     if (autoCloseTimer) {
         clearTimeout(autoCloseTimer);
         autoCloseTimer = null;
     }
 }
 
-// Navigation
+// ============================================
+// NAVIGATION
+// ============================================
 function navigateTo(screenId) {
     document.querySelectorAll('.screen').forEach(s => {
         s.classList.remove('active');
@@ -339,7 +310,6 @@ function navigateTo(screenId) {
     const targetScreen = document.getElementById(screenId);
     if (targetScreen) {
         targetScreen.classList.add('active');
-        
         if (screenId === 'areaListScreen') {
             fetchLastData();
             updateOverallProgress();
@@ -347,14 +317,12 @@ function navigateTo(screenId) {
     }
 }
 
+// ============================================
+// LOGSHEET FUNCTIONS
+// ============================================
 function fetchLastData() {
-    const statusPill = document.getElementById('statusPill');
     updateStatusIndicator(false);
-    
-    const timeout = setTimeout(() => {
-        renderMenu();
-    }, 8000);
-    
+    const timeout = setTimeout(() => renderMenu(), 8000);
     const callbackName = 'jsonp_' + Date.now();
     const script = document.createElement('script');
     
@@ -372,14 +340,12 @@ function fetchLastData() {
         clearTimeout(timeout);
         renderMenu();
     };
-    
     document.body.appendChild(script);
 }
 
 function updateStatusIndicator(isOnline) {
     const statusPill = document.getElementById('statusPill');
     if (!statusPill) return;
-    
     const statusText = statusPill.querySelector('.status-text');
     
     if (isOnline) {
@@ -397,7 +363,6 @@ function renderMenu() {
     
     const totalAreas = Object.keys(AREAS).length;
     let completedAreas = 0;
-    
     let html = '';
     
     Object.entries(AREAS).forEach(([areaName, params]) => {
@@ -405,7 +370,6 @@ function renderMenu() {
         const total = params.length;
         const percent = Math.round((filled / total) * 100);
         const isCompleted = filled === total && total > 0;
-        
         if (isCompleted) completedAreas++;
         
         const circumference = 2 * Math.PI * 18;
@@ -426,9 +390,7 @@ function renderMenu() {
                     <div class="area-name">${areaName}</div>
                     <div class="area-meta">${filled} dari ${total} parameter diisi</div>
                 </div>
-                <div class="area-status">
-                    ${isCompleted ? '✓' : '❯'}
-                </div>
+                <div class="area-status">${isCompleted ? '✓' : '❯'}</div>
             </div>
         `;
     });
@@ -437,9 +399,7 @@ function renderMenu() {
     
     const hasData = Object.keys(currentInput).length > 0;
     const submitBtn = document.getElementById('submitBtn');
-    if (submitBtn) {
-        submitBtn.style.display = hasData ? 'flex' : 'none';
-    }
+    if (submitBtn) submitBtn.style.display = hasData ? 'flex' : 'none';
     
     updateOverallProgressUI(completedAreas, totalAreas);
 }
@@ -447,18 +407,15 @@ function renderMenu() {
 function updateOverallProgress() {
     const totalAreas = Object.keys(AREAS).length;
     let completedAreas = 0;
-    
     Object.entries(AREAS).forEach(([areaName, params]) => {
         const filled = currentInput[areaName] ? Object.keys(currentInput[areaName]).length : 0;
         if (filled === params.length && filled > 0) completedAreas++;
     });
-    
     updateOverallProgressUI(completedAreas, totalAreas);
 }
 
 function updateOverallProgressUI(completedAreas, totalAreas) {
     const percent = Math.round((completedAreas / totalAreas) * 100);
-    
     const progressText = document.getElementById('progressText');
     const overallPercent = document.getElementById('overallPercent');
     const overallProgressBar = document.getElementById('overallProgressBar');
@@ -472,12 +429,8 @@ function openArea(areaName) {
     activeArea = areaName;
     activeIdx = 0;
     navigateTo('paramScreen');
-    
     const currentAreaName = document.getElementById('currentAreaName');
-    if (currentAreaName) {
-        currentAreaName.textContent = areaName;
-    }
-    
+    if (currentAreaName) currentAreaName.textContent = areaName;
     renderProgressDots();
     showStep();
 }
@@ -485,17 +438,14 @@ function openArea(areaName) {
 function renderProgressDots() {
     const container = document.getElementById('progressDots');
     if (!container) return;
-    
     const total = AREAS[activeArea].length;
     let html = '';
-    
     for (let i = 0; i < total; i++) {
         const isFilled = currentInput[activeArea] && currentInput[activeArea][AREAS[activeArea][i]];
         const isActive = i === activeIdx;
         const className = isActive ? 'active' : (isFilled ? 'filled' : '');
         html += `<div class="progress-dot ${className}" onclick="jumpToStep(${i})"></div>`;
     }
-    
     container.innerHTML = html;
 }
 
@@ -510,10 +460,24 @@ function jumpToStep(index) {
             localStorage.setItem('draft_turbine', JSON.stringify(currentInput));
         }
     }
-    
     activeIdx = index;
     showStep();
     renderProgressDots();
+}
+
+function detectInputType(label) {
+    for (const [type, config] of Object.entries(INPUT_TYPES)) {
+        for (const pattern of config.patterns) {
+            if (label.includes(pattern)) {
+                return {
+                    type: 'select',
+                    options: config.options[pattern],
+                    pattern: pattern
+                };
+            }
+        }
+    }
+    return { type: 'text', options: null, pattern: null };
 }
 
 function getUnit(label) {
@@ -558,9 +522,7 @@ function showStep() {
         if (inputFieldContainer) {
             inputFieldContainer.innerHTML = `
                 <div class="select-wrapper">
-                    <select id="valInput" class="status-select">
-                        ${optionsHtml}
-                    </select>
+                    <select id="valInput" class="status-select">${optionsHtml}</select>
                     <div class="select-arrow">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M6 9l6 6 6-6"/>
@@ -569,16 +531,12 @@ function showStep() {
                 </div>
             `;
         }
-        
         if (unitDisplay) unitDisplay.style.display = 'none';
         if (mainInputWrapper) mainInputWrapper.classList.add('has-select');
     } else {
         if (inputFieldContainer) {
-            inputFieldContainer.innerHTML = `
-                <input type="text" id="valInput" inputmode="decimal" placeholder="0.00" value="${currentValue}" autocomplete="off">
-            `;
+            inputFieldContainer.innerHTML = `<input type="text" id="valInput" inputmode="decimal" placeholder="0.00" value="${currentValue}" autocomplete="off">`;
         }
-        
         if (unitDisplay) {
             unitDisplay.textContent = getUnit(fullLabel) || '--';
             unitDisplay.style.display = 'flex';
@@ -607,7 +565,6 @@ function showStep() {
 function saveStep() {
     const input = document.getElementById('valInput');
     if (!input) return;
-    
     const val = input.value.trim();
     const fullLabel = AREAS[activeArea][activeIdx];
     
@@ -637,14 +594,10 @@ function goBack() {
 
 async function sendToSheet() {
     const loader = document.getElementById('loader');
-    if (loader) {
-        loader.style.display = 'flex';
-    }
-    
     const loaderText = document.querySelector('.loader-text h3');
-    if (loaderText) {
-        loaderText.textContent = 'Mengirim Data...';
-    }
+    
+    if (loader) loader.style.display = 'flex';
+    if (loaderText) loaderText.textContent = 'Mengirim Data...';
     
     const finalData = {};
     Object.values(currentInput).forEach(obj => Object.assign(finalData, obj));
@@ -653,39 +606,193 @@ async function sendToSheet() {
         await fetch(GAS_URL, {
             method: 'POST',
             mode: 'no-cors',
-            headers: {
-                'Content-Type': 'application/json',
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(finalData)
         });
         
         showCustomAlert('✓ Data berhasil dikirim ke sistem!', 'success');
         currentInput = {};
         localStorage.removeItem('draft_turbine');
-        
-        setTimeout(() => {
-            navigateTo('homeScreen');
-        }, 2000);
-        
+        setTimeout(() => navigateTo('homeScreen'), 2000);
     } catch (error) {
         showCustomAlert('Gagal mengirim data. Periksa koneksi internet.', 'error');
     } finally {
-        if (loader) {
-            loader.style.display = 'none';
-        }
+        if (loader) loader.style.display = 'none';
     }
 }
 
+// ============================================
+// TPM FUNCTIONS (Total Productive Maintenance)
+// ============================================
+function openTPMArea(areaName) {
+    activeTPMArea = areaName;
+    currentTPMPhoto = null;
+    currentTPMStatus = '';
+    
+    // Reset form
+    const preview = document.getElementById('tpmPhotoPreview');
+    if (preview) {
+        preview.innerHTML = '<span style="color: var(--text-muted); font-size: 3rem;">📷</span>';
+        preview.closest('.tpm-photo-section').classList.remove('has-photo');
+    }
+    
+    const notes = document.getElementById('tpmNotes');
+    if (notes) notes.value = '';
+    
+    const action = document.getElementById('tpmAction');
+    if (action) action.value = '';
+    
+    // Reset status buttons
+    document.querySelectorAll('.tpm-status-btn').forEach(btn => {
+        btn.className = 'tpm-status-btn';
+    });
+    
+    // Set title
+    const title = document.getElementById('tpmInputTitle');
+    if (title) title.textContent = areaName;
+    
+    navigateTo('tpmInputScreen');
+}
+
+function handleTPMPhoto(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    if (file.size > 5 * 1024 * 1024) {
+        showCustomAlert('Ukuran foto terlalu besar. Maksimal 5MB.', 'error');
+        return;
+    }
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        currentTPMPhoto = e.target.result;
+        const preview = document.getElementById('tpmPhotoPreview');
+        if (preview) {
+            preview.innerHTML = `<img src="${currentTPMPhoto}" style="width: 100%; height: 100%; object-fit: cover; border-radius: var(--radius-md);">`;
+            preview.closest('.tpm-photo-section').classList.add('has-photo');
+        }
+        showCustomAlert('Foto berhasil diambil!', 'success');
+    };
+    reader.readAsDataURL(file);
+}
+
+function selectTPMStatus(status) {
+    currentTPMStatus = status;
+    
+    // Reset all buttons
+    document.getElementById('btnNormal').className = 'tpm-status-btn';
+    document.getElementById('btnAbnormal').className = 'tpm-status-btn';
+    document.getElementById('btnOff').className = 'tpm-status-btn';
+    
+    // Activate selected
+    if (status === 'normal') {
+        document.getElementById('btnNormal').classList.add('active-normal');
+    } else if (status === 'abnormal') {
+        document.getElementById('btnAbnormal').classList.add('active-abnormal');
+    } else if (status === 'off') {
+        document.getElementById('btnOff').classList.add('active-off');
+    }
+    
+    // Warning if abnormal/off without photo
+    if ((status === 'abnormal' || status === 'off') && !currentTPMPhoto) {
+        setTimeout(() => {
+            showCustomAlert('⚠️ Kondisi abnormal/off wajib didokumentasikan dengan foto!', 'error');
+        }, 100);
+    }
+}
+
+async function submitTPMData() {
+    const notes = document.getElementById('tpmNotes')?.value || '';
+    const action = document.getElementById('tpmAction')?.value || '';
+    
+    // Validasi
+    if (!currentTPMStatus) {
+        showCustomAlert('Pilih status kondisi terlebih dahulu!', 'error');
+        return;
+    }
+    
+    if (!currentTPMPhoto) {
+        showCustomAlert('Ambil foto dokumentasi terlebih dahulu!', 'error');
+        return;
+    }
+    
+    if (!action) {
+        showCustomAlert('Pilih tindakan yang dilakukan!', 'error');
+        return;
+    }
+    
+    // Show loading
+    const loader = document.getElementById('loader');
+    const loaderText = document.querySelector('.loader-text h3');
+    const loaderDesc = document.querySelector('.loader-text p');
+    
+    if (loader) loader.style.display = 'flex';
+    if (loaderText) loaderText.textContent = 'Mengupload TPM...';
+    if (loaderDesc) loaderDesc.textContent = 'Sedang mengupload foto ke Google Drive...';
+    
+    // Prepare data
+    const tpmData = {
+        type: 'TPM',
+        area: activeTPMArea,
+        status: currentTPMStatus,
+        notes: notes,
+        action: action,
+        photo: currentTPMPhoto,
+        user: 'Operator',
+        timestamp: new Date().toISOString()
+    };
+    
+    try {
+        const response = await fetch(GAS_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(tpmData)
+        });
+        
+        // Save to local history (without base64 to save space)
+        let tpmHistory = JSON.parse(localStorage.getItem('tpm_history') || '[]');
+        tpmHistory.push({
+            ...tpmData,
+            photo: '[UPLOADED_TO_DRIVE]'
+        });
+        localStorage.setItem('tpm_history', JSON.stringify(tpmHistory));
+        
+        showCustomAlert(`✓ Data TPM ${activeTPMArea} berhasil disimpan! Foto tersimpan di Google Drive.`, 'success');
+        
+        // Reset
+        currentTPMPhoto = null;
+        currentTPMStatus = '';
+        
+        setTimeout(() => {
+            navigateTo('tpmScreen');
+        }, 2000);
+        
+    } catch (error) {
+        console.error('TPM Error:', error);
+        
+        // Save offline for retry
+        let offlineTPM = JSON.parse(localStorage.getItem('tpm_offline') || '[]');
+        offlineTPM.push(tpmData);
+        localStorage.setItem('tpm_offline', JSON.stringify(offlineTPM));
+        
+        showCustomAlert('Gagal mengupload. Data disimpan lokal untuk diupload nanti.', 'error');
+    } finally {
+        if (loader) loader.style.display = 'none';
+    }
+}
+
+// ============================================
+// KEYBOARD EVENTS
+// ============================================
 document.addEventListener('keydown', (e) => {
     const paramScreen = document.getElementById('paramScreen');
     if (!paramScreen || !paramScreen.classList.contains('active')) return;
     
     if (e.key === 'Enter') {
         e.preventDefault();
-        if (currentInputType !== 'select') {
-            saveStep();
-        }
+        if (currentInputType !== 'select') saveStep();
     } else if (e.key === 'Escape') {
-        navigateTo('areaListScreen');
+        goBack();
     }
 });
