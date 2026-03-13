@@ -1280,3 +1280,6 @@ html {
 .area-item.completed .area-status {
     color: var(--success);
 }
+.quick-stats {
+    display: none !important;
+}
