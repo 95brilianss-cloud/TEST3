@@ -31,7 +31,7 @@ if ('serviceWorker' in navigator) {
 // ============================================
 // CONFIGURATION
 // ============================================
-const GAS_URL = "https://script.google.com/macros/s/AKfycbygjow8j5GADXUaN6Cvw0k5woNJj2rgNv0RQSsDMe4sajWzUMebz6RvayottCvmjzrC/exec";
+const GAS_URL = "https://script.google.com/macros/s/AKfycbz30vHFmRl3MVX-kt8XiUxowhqX1rx0fTYCiGQoKo3e_w5DdblfyP6kU-UKbjMSx3_R/exec";
 
 const INPUT_TYPES = {
     PUMP_STATUS: {
