@@ -1,7 +1,7 @@
 // ============================================
 // TURBINE LOGSHEET PRO - VERSION CONTROL
 // ============================================
-const APP_VERSION = '1.1.2';
+const APP_VERSION = '1.1.3'; // Updated for GAS compatibility
 
 // ============================================
 // AUTHENTICATION SYSTEM
@@ -9,8 +9,8 @@ const APP_VERSION = '1.1.2';
 const AUTH_CONFIG = {
     SESSION_KEY: 'turbine_session',
     USER_KEY: 'turbine_user',
-    SESSION_DURATION: 8 * 60 * 60 * 1000,
-    REMEMBER_ME_DURATION: 30 * 24 * 60 * 60 * 1000
+    SESSION_DURATION: 8 * 60 * 60 * 1000, // 8 hours
+    REMEMBER_ME_DURATION: 30 * 24 * 60 * 60 * 1000 // 30 days
 };
 
 let currentUser = null;
@@ -176,7 +176,14 @@ function logoutOperator() {
 }
 
 function showLoginScreen() {
-    navigateTo('loginScreen');
+    document.querySelectorAll('.screen').forEach(s => {
+        s.classList.remove('active');
+    });
+    
+    const loginScreen = document.getElementById('loginScreen');
+    if (loginScreen) {
+        loginScreen.classList.add('active');
+    }
     
     const savedUser = localStorage.getItem(AUTH_CONFIG.USER_KEY);
     if (savedUser) {
@@ -417,7 +424,7 @@ window.addEventListener('DOMContentLoaded', () => {
     
     initAuth();
     setupLoginListeners();
-    setupTPMListeners(); // Setup TPM event listeners
+    setupTPMListeners();
     
     simulateLoading();
 });
@@ -441,13 +448,11 @@ function setupLoginListeners() {
 
 // Setup TPM event listeners
 function setupTPMListeners() {
-    // Setup TPM Camera input
     const tpmCamera = document.getElementById('tpmCamera');
     if (tpmCamera) {
         tpmCamera.addEventListener('change', handleTPMPhoto);
     }
     
-    // Setup TPM Status buttons
     const btnNormal = document.getElementById('btnNormal');
     const btnAbnormal = document.getElementById('btnAbnormal');
     const btnOff = document.getElementById('btnOff');
@@ -516,7 +521,14 @@ function showCustomAlert(msg, type = 'success') {
         autoCloseTimer = null;
     }
     
-    alertTitle.textContent = type === 'success' ? 'Berhasil' : 'Error';
+    // Handle warning type
+    const titleMap = {
+        'success': 'Berhasil',
+        'error': 'Error',
+        'warning': 'Peringatan'
+    };
+    alertTitle.textContent = titleMap[type] || 'Informasi';
+    
     const alertMessage = document.getElementById('alertMessage');
     if (alertMessage) alertMessage.innerText = msg;
     
@@ -528,6 +540,14 @@ function showCustomAlert(msg, type = 'success') {
             <svg class="alert-icon-svg" viewBox="0 0 52 52">
                 <circle cx="26" cy="26" r="25"></circle>
                 <path d="M14.1 27.2l7.1 7.2 16.7-16.8"></path>
+            </svg>
+        `;
+    } else if (type === 'warning') {
+        alertIconWrapper.innerHTML = `
+            <div class="alert-icon-bg" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);"></div>
+            <svg class="alert-icon-svg" viewBox="0 0 52 52" style="stroke: #f59e0b;">
+                <circle cx="26" cy="26" r="25"></circle>
+                <path d="M26 10 L26 30 M26 34 L26 38"></path>
             </svg>
         `;
     } else {
@@ -577,7 +597,6 @@ function navigateTo(screenId) {
     if (targetScreen) {
         targetScreen.classList.add('active');
         
-        // Update user info when navigating to TPM screens
         if (screenId === 'tpmScreen' || screenId === 'tpmInputScreen') {
             updateTPMUserInfo();
         }
@@ -879,6 +898,9 @@ function goBack() {
     }
 }
 
+// ============================================
+// SEND LOGSHEET TO SPREADSHEET - GAS COMPATIBLE
+// ============================================
 async function sendToSheet() {
     if (!requireAuth()) return;
     
@@ -888,27 +910,55 @@ async function sendToSheet() {
     if (loader) loader.style.display = 'flex';
     if (loaderText) loaderText.textContent = 'Mengirim Data...';
     
+    // Flatten all parameters into a single object (GAS expects flat structure)
+    let allParameters = {};
+    Object.entries(currentInput).forEach(([areaName, params]) => {
+        Object.entries(params).forEach(([paramName, value]) => {
+            allParameters[paramName] = value;
+        });
+    });
+    
+    // Create final data object matching Google Apps Script expectations
+    // GAS expects: type, Operator (capital O), and flat parameter structure
     const finalData = {
-        operator: currentUser ? currentUser.name : 'Unknown',
-        operatorId: currentUser ? currentUser.id : 'Unknown',
-        timestamp: new Date().toISOString(),
-        ...Object.values(currentInput).reduce((acc, obj) => Object.assign(acc, obj), {})
+        type: 'LOGSHEET',
+        Operator: currentUser ? currentUser.name : 'Unknown',  // Capital O as expected by GAS
+        OperatorId: currentUser ? currentUser.id : 'Unknown', // Optional tracking
+        ...allParameters // Spread to flatten - GAS expects parameters at root level
     };
     
+    console.log('Sending Logsheet Data:', finalData);
+    
     try {
+        // Use no-cors mode for Google Apps Script
         await fetch(GAS_URL, {
             method: 'POST',
             mode: 'no-cors',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json'
+            },
             body: JSON.stringify(finalData)
         });
         
+        // Since no-cors doesn't return readable response, assume success after timeout
         showCustomAlert('✓ Data berhasil dikirim ke sistem!', 'success');
+        
+        // Clear local data
         currentInput = {};
         localStorage.removeItem('draft_turbine');
-        setTimeout(() => navigateTo('homeScreen'), 2000);
+        
+        setTimeout(() => {
+            navigateTo('homeScreen');
+        }, 2000);
+        
     } catch (error) {
-        showCustomAlert('Gagal mengirim data. Periksa koneksi internet.', 'error');
+        console.error('Error sending data:', error);
+        showCustomAlert('Gagal mengirim data. Data disimpan lokal.', 'error');
+        
+        // Save to offline queue for retry
+        let offlineData = JSON.parse(localStorage.getItem('offline_logsheets') || '[]');
+        offlineData.push(finalData);
+        localStorage.setItem('offline_logsheets', JSON.stringify(offlineData));
     } finally {
         if (loader) loader.style.display = 'none';
     }
@@ -932,7 +982,7 @@ function goToTPMScreen() {
 function openTPMArea(areaName) {
     if (!requireAuth()) return;
     
-    console.log('Opening TPM Area:', areaName); // Debug log
+    console.log('Opening TPM Area:', areaName);
     
     activeTPMArea = areaName;
     currentTPMPhoto = null;
@@ -994,11 +1044,10 @@ function resetTPMStatusButtons() {
     const buttons = ['btnNormal', 'btnAbnormal', 'btnOff'];
     const classes = ['active-normal', 'active-abnormal', 'active-off'];
     
-    buttons.forEach((id, index) => {
+    buttons.forEach((id) => {
         const btn = document.getElementById(id);
         if (btn) {
             btn.className = 'status-btn';
-            // Remove all active classes
             classes.forEach(cls => btn.classList.remove(cls));
         }
     });
@@ -1008,7 +1057,7 @@ function resetTPMStatusButtons() {
  * Handle TPM Photo capture
  */
 function handleTPMPhoto(event) {
-    console.log('Handle TPM Photo triggered'); // Debug log
+    console.log('Handle TPM Photo triggered');
     
     const file = event.target.files[0];
     if (!file) {
@@ -1021,7 +1070,7 @@ function handleTPMPhoto(event) {
     // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
         showCustomAlert('Ukuran foto terlalu besar. Maksimal 5MB.', 'error');
-        event.target.value = ''; // Reset input
+        event.target.value = '';
         return;
     }
     
@@ -1042,7 +1091,7 @@ function handleTPMPhoto(event) {
         const photoSection = document.getElementById('tpmPhotoSection');
         
         if (preview) {
-            preview.innerHTML = `<img src="${currentTPMPhoto}" style="width: 100%; height: 100%; object-fit: cover; border-radius: var(--radius-md);" alt="TPM Photo">`;
+            preview.innerHTML = `<img src="${currentTPMPhoto}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 12px;" alt="TPM Photo">`;
         }
         
         if (photoSection) {
@@ -1064,7 +1113,7 @@ function handleTPMPhoto(event) {
  * Select TPM Status
  */
 function selectTPMStatus(status) {
-    console.log('Selecting TPM Status:', status); // Debug log
+    console.log('Selecting TPM Status:', status);
     
     currentTPMStatus = status;
     
@@ -1095,12 +1144,12 @@ function selectTPMStatus(status) {
 }
 
 /**
- * Submit TPM Data
+ * Submit TPM Data - GAS Compatible
  */
 async function submitTPMData() {
     if (!requireAuth()) return;
     
-    console.log('Submitting TPM Data...'); // Debug log
+    console.log('Submitting TPM Data...');
     
     const notes = document.getElementById('tpmNotes')?.value.trim() || '';
     const action = document.getElementById('tpmAction')?.value || '';
@@ -1128,38 +1177,39 @@ async function submitTPMData() {
     
     if (loader) loader.style.display = 'flex';
     if (loaderText) loaderText.textContent = 'Mengupload TPM...';
-    if (loaderDesc) loaderDesc.textContent = 'Sedang mengupload foto ke Google Drive...';
+    if (loaderDesc) loaderDesc.textContent = 'Sedang mengupload foto...';
     
-    // Prepare data
+    // Prepare data matching GAS expectations
+    // GAS expects: type, area, status, action, notes, photo, user (not operator)
     const tpmData = {
         type: 'TPM',
         area: activeTPMArea,
         status: currentTPMStatus,
-        notes: notes,
-        action: action,
+        action: action,      // GAS maps this to "Tindakan"
+        notes: notes,        // GAS maps this to "Keterangan"
         photo: currentTPMPhoto,
-        operator: currentUser ? currentUser.name : 'Unknown',
-        operatorId: currentUser ? currentUser.id : 'Unknown',
+        user: currentUser ? currentUser.name : 'Unknown',  // GAS expects 'user', not 'operator'
         timestamp: new Date().toISOString()
     };
     
+    console.log('Sending TPM Data:', tpmData);
+    
     try {
-        console.log('Sending TPM data...'); // Debug log
-        
-        const response = await fetch(GAS_URL, {
+        // Send to Google Apps Script
+        await fetch(GAS_URL, {
             method: 'POST',
             mode: 'no-cors',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json'
+            },
             body: JSON.stringify(tpmData)
         });
         
-        console.log('TPM data sent successfully'); // Debug log
-        
-        // Save to local history (without base64 to save space)
+        // Save to local history (without base64 photo to save space)
         let tpmHistory = JSON.parse(localStorage.getItem('tpm_history') || '[]');
         tpmHistory.push({
             ...tpmData,
-            photo: '[UPLOADED_TO_DRIVE]'
+            photo: '[UPLOADED]' 
         });
         localStorage.setItem('tpm_history', JSON.stringify(tpmHistory));
         
