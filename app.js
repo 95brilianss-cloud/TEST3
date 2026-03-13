@@ -2,7 +2,7 @@
 // TURBINE LOGSHEET PRO - v1.1.2 (FIXED)
 // ============================================
 
-const APP_VERSION = '1.0.8';
+const APP_VERSION = '1.0.9';
 const GAS_URL = "https://script.google.com/macros/s/AKfycbz30vHFmRl3MVX-kt8XiUxowhqX1rx0fTYCiGQoKo3e_w5DdblfyP6kU-UKbjMSx3_R/exec";
 
 // ============================================
