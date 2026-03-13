@@ -11,6 +11,67 @@
     
     <title>Turbine Logsheet Pro</title>
     
+    <!-- Inline Critical CSS (Backup jika style.css gagal) -->
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { 
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #0f172a; 
+            color: #f8fafc;
+            min-height: 100vh;
+        }
+        .screen { display: none; min-height: 100vh; }
+        .screen.active { display: block; }
+        #loginScreen.active { display: flex !important; flex-direction: column; }
+        
+        /* Critical styles untuk memastikan tampilan muncul */
+        .loader-overlay {
+            position: fixed; inset: 0; background: #0f172a;
+            display: flex; align-items: center; justify-content: center;
+            z-index: 10000;
+        }
+        .custom-alert {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.85);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 10001;
+        }
+        .custom-alert.hidden { display: none; }
+        
+        /* Login screen critical */
+        .login-container {
+            min-height: 100vh; display: flex; flex-direction: column;
+            padding: 16px; justify-content: center;
+        }
+        .login-header { text-align: center; margin-bottom: 24px; }
+        .logo-fallback {
+            width: 120px; height: 120px; margin: 0 auto 16px;
+            background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+            border-radius: 20px; display: flex; align-items: center;
+            justify-content: center; font-size: 4rem;
+        }
+        .app-title { font-size: 1.5rem; font-weight: 700; margin-bottom: 8px; }
+        .app-subtitle { font-size: 0.875rem; color: #94a3b8; }
+        
+        .login-form {
+            background: rgba(30, 41, 59, 0.8);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            border-radius: 16px; padding: 24px;
+        }
+        .login-input {
+            width: 100%; padding: 12px 16px;
+            background: rgba(15, 23, 42, 0.6);
+            border: 2px solid rgba(148, 163, 184, 0.2);
+            border-radius: 12px; color: #f8fafc;
+            font-size: 1rem; text-align: center; margin-bottom: 16px;
+        }
+        .btn-primary {
+            width: 100%; padding: 14px; background: #0ea5e9;
+            color: white; border: none; border-radius: 12px;
+            font-size: 1rem; font-weight: 600; cursor: pointer;
+        }
+        .login-error { color: #ef4444; font-size: 0.75rem; text-align: center; display: none; }
+    </style>
+    
     <link rel="stylesheet" href="style.css?v=1.2.0">
     <link rel="manifest" href="manifest.json?v=1.2.0">
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E⚡%3C/text%3E%3C/svg%3E">
@@ -25,7 +86,7 @@
 <div id="loader" class="loader-overlay">
     <div class="loader-content">
         <div class="turbine-logo-large">
-            <svg viewBox="0 0 100 100" class="turbine-spin">
+            <svg viewBox="0 0 100 100" class="turbine-spin" width="100" height="100">
                 <defs>
                     <linearGradient id="turbineGrad" x1="0%" y1="0%" x2="100%" y2="100%">
                         <stop offset="0%" style="stop-color:#06b6d4"/>
@@ -45,7 +106,7 @@
             <h3>Turbine System</h3>
             <p>Sinkronisasi Data...</p>
             <div class="progress-bar-loader">
-                <div class="fill" id="loaderProgress"></div>
+                <div class="fill" id="loaderProgress" style="width: 0%"></div>
             </div>
         </div>
     </div>
@@ -53,51 +114,44 @@
 
 <!-- Update Alert -->
 <div id="updateAlert" class="custom-alert hidden">
-    <div class="alert-content">
-        <div class="update-icon-wrapper">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
-            </svg>
-        </div>
-        <h3>Update Tersedia</h3>
-        <p>Versi baru aplikasi telah tersedia.</p>
-        <button class="alert-btn" onclick="applyUpdate()">Update Sekarang</button>
+    <div class="alert-content" style="background: rgba(30, 41, 59, 0.95); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 16px; padding: 24px; text-align: center; max-width: 300px;">
+        <h3 style="margin-bottom: 8px;">Update Tersedia</h3>
+        <p style="color: #94a3b8; margin-bottom: 16px;">Versi baru aplikasi telah tersedia.</p>
+        <button class="alert-btn" onclick="applyUpdate()" style="padding: 12px 24px; background: #0ea5e9; color: white; border: none; border-radius: 8px; cursor: pointer;">Update Sekarang</button>
     </div>
 </div>
 
 <!-- Custom Alert -->
 <div id="customAlert" class="custom-alert hidden">
-    <div class="alert-content" id="alertContent">
-        <div class="alert-icon-wrapper" id="alertIconWrapper">
-            <div class="alert-icon-bg"></div>
-            <svg class="alert-icon-svg" viewBox="0 0 52 52">
+    <div class="alert-content" id="alertContent" style="background: rgba(30, 41, 59, 0.95); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 16px; padding: 24px; text-align: center; max-width: 300px;">
+        <div class="alert-icon-wrapper" id="alertIconWrapper" style="width: 56px; height: 56px; margin: 0 auto 16px;">
+            <svg viewBox="0 0 52 52" style="stroke: #10b981; stroke-width: 3; fill: none;">
                 <circle cx="26" cy="26" r="25"/>
                 <path d="M14.1 27.2l7.1 7.2 16.7-16.8"/>
             </svg>
         </div>
-        <h3 id="alertTitle">Berhasil</h3>
-        <p id="alertMessage">Data berhasil dikirim!</p>
-        <button class="alert-btn success" onclick="closeAlert()">Oke</button>
+        <h3 id="alertTitle" style="margin-bottom: 8px;">Berhasil</h3>
+        <p id="alertMessage" style="color: #94a3b8; margin-bottom: 16px;">Data berhasil dikirim!</p>
+        <button class="alert-btn success" onclick="closeAlert()" style="padding: 12px 24px; background: #10b981; color: white; border: none; border-radius: 8px; cursor: pointer; width: 100%;">Oke</button>
     </div>
 </div>
 
 <div class="app-container">
     
-    <!-- LOGIN SCREEN -->
-    <div id="loginScreen" class="screen">
+    <!-- LOGIN SCREEN - PASTIKAN INI PERTAMA DAN AKTIF -->
+    <div id="loginScreen" class="screen active">
         <div class="login-container">
             <div class="login-header">
                 <div class="logo-container animated">
-                    <img src="logo.png" alt="Logo" id="loginLogo" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'">
-                    <div class="logo-fallback" style="display:none;">⚡</div>
+                    <div class="logo-fallback">⚡</div>
                 </div>
                 <h1 class="app-title">Turbine Logsheet</h1>
                 <p class="app-subtitle">Sistem Monitoring Operasional</p>
             </div>
             
             <div class="login-form glass">
-                <h2 class="login-title">Selamat Datang</h2>
-                <p class="login-subtitle">Masukkan nama Anda</p>
+                <h2 class="login-title" style="text-align: center; margin-bottom: 8px;">Selamat Datang</h2>
+                <p class="login-subtitle" style="text-align: center; color: #94a3b8; margin-bottom: 20px;">Masukkan nama Anda</p>
                 
                 <div class="input-group">
                     <input type="text" id="operatorName" class="login-input" placeholder="Nama Lengkap" autocomplete="name" enterkeyhint="done">
@@ -106,15 +160,12 @@
                 
                 <button class="btn btn-primary btn-full" onclick="loginOperator()">
                     <span>Masuk</span>
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M13.8 12H3"/>
-                    </svg>
                 </button>
             </div>
             
-            <div class="login-footer">
-                <p>PT Petrokimia Gresik • Unit III B</p>
-                <span class="version-tag">v<span id="versionDisplay"><!-- auto --></span></span>
+            <div class="login-footer" style="text-align: center; margin-top: auto; padding-top: 24px;">
+                <p style="font-size: 0.75rem; color: #64748b;">PT Petrokimia Gresik • Unit III B</p>
+                <span class="version-tag" style="display: inline-block; margin-top: 8px; padding: 4px 12px; background: rgba(14, 165, 233, 0.1); color: #38bdf8; border-radius: 9999px; font-size: 0.75rem;">v<span class="version-tag">v<span id="versionDisplay"><!-- auto --></span></span>
             </div>
         </div>
     </div>
@@ -141,8 +192,7 @@
             
             <div class="home-hero-content">
                 <div class="logo-container small animated">
-                    <img src="logo.png" alt="Logo" id="mainLogo" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'">
-                    <div class="logo-fallback" style="display:none;">⚡</div>
+                    <div class="logo-fallback" style="width: 80px; height: 80px; font-size: 2.5rem;">⚡</div>
                 </div>
                 <h1 class="home-title">Dashboard</h1>
                 <p class="home-subtitle">Pilih menu untuk memulai</p>
@@ -163,9 +213,6 @@
                     <h3>Logsheet</h3>
                     <p>Input data operasional</p>
                 </div>
-                <svg class="menu-arrow" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M9 18l6-6-6-6"/>
-                </svg>
             </div>
 
             <div class="menu-card warning" onclick="navigateTo('tpmScreen')">
@@ -178,9 +225,6 @@
                     <h3>TPM</h3>
                     <p>Maintenance Check</p>
                 </div>
-                <svg class="menu-arrow" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M9 18l6-6-6-6"/>
-                </svg>
             </div>
         </div>
 
@@ -217,9 +261,6 @@
                     <h4>Area #6200</h4>
                     <p>Peralatan & Sistem Unit</p>
                 </div>
-                <svg class="item-arrow" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M9 18l6-6-6-6"/>
-                </svg>
             </div>
 
             <div class="list-item" onclick="openTPMArea('Area Turbin')">
@@ -228,9 +269,6 @@
                     <h4>Area Turbin</h4>
                     <p>Maintenance Sistem Turbin</p>
                 </div>
-                <svg class="item-arrow" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M9 18l6-6-6-6"/>
-                </svg>
             </div>
 
             <div class="list-item" onclick="openTPMArea('Area Cooling Tower')">
@@ -239,9 +277,6 @@
                     <h4>Cooling Tower</h4>
                     <p>Sistem Pendingin</p>
                 </div>
-                <svg class="item-arrow" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M9 18l6-6-6-6"/>
-                </svg>
             </div>
 
             <div class="list-item" onclick="openTPMArea('Area Compressor')">
@@ -250,9 +285,6 @@
                     <h4>Area Compressor</h4>
                     <p>Sistem Kompresor</p>
                 </div>
-                <svg class="item-arrow" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M9 18l6-6-6-6"/>
-                </svg>
             </div>
         </div>
     </div>
@@ -276,70 +308,58 @@
             <input type="file" id="tpmCamera" accept="image/*" capture="environment" style="display: none;" onchange="handleTPMPhoto(event)">
             
             <div class="photo-card glass" id="tpmPhotoSection">
-                <div class="photo-preview" id="tpmPhotoPreview">
-                    <div class="photo-placeholder">
-                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <div class="photo-preview" id="tpmPhotoPreview" style="height: 200px; background: #1e293b; border-radius: 12px; display: flex; align-items: center; justify-content: center; margin-bottom: 16px;">
+                    <div class="photo-placeholder" style="text-align: center; color: #64748b;">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom: 8px;">
                             <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
                             <circle cx="12" cy="13" r="4"/>
                         </svg>
-                        <span>Ambil Foto</span>
+                        <div>Ambil Foto</div>
                     </div>
                 </div>
-                <button class="btn btn-camera" onclick="document.getElementById('tpmCamera').click()">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-                        <circle cx="12" cy="13" r="4"/>
-                    </svg>
-                    <span>Buka Kamera</span>
+                <button class="btn btn-camera" onclick="document.getElementById('tpmCamera').click()" style="width: 100%; padding: 12px; background: #f59e0b; color: white; border: none; border-radius: 12px; cursor: pointer;">
+                    <span>📷 Buka Kamera</span>
                 </button>
             </div>
 
             <div class="form-card glass">
                 <h3 class="form-section-title">Status Kondisi</h3>
                 
-                <div class="status-grid">
-                    <button class="status-btn" id="btnNormal" onclick="selectTPMStatus('normal')">
-                        <span class="status-dot" style="background: #10b981;"></span>
-                        <span class="status-label">Normal</span>
+                <div class="status-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 20px;">
+                    <button class="status-btn" id="btnNormal" onclick="selectTPMStatus('normal')" style="padding: 16px; background: #1e293b; border: 2px solid #334155; border-radius: 12px; color: white; cursor: pointer;">
+                        <span class="status-dot" style="display: inline-block; width: 12px; height: 12px; background: #10b981; border-radius: 50%; margin-bottom: 4px;"></span>
+                        <div>Normal</div>
                     </button>
-                    <button class="status-btn" id="btnAbnormal" onclick="selectTPMStatus('abnormal')">
-                        <span class="status-dot" style="background: #f59e0b;"></span>
-                        <span class="status-label">Abnormal</span>
+                    <button class="status-btn" id="btnAbnormal" onclick="selectTPMStatus('abnormal')" style="padding: 16px; background: #1e293b; border: 2px solid #334155; border-radius: 12px; color: white; cursor: pointer;">
+                        <span class="status-dot" style="display: inline-block; width: 12px; height: 12px; background: #f59e0b; border-radius: 50%; margin-bottom: 4px;"></span>
+                        <div>Abnormal</div>
                     </button>
-                    <button class="status-btn" id="btnOff" onclick="selectTPMStatus('off')">
-                        <span class="status-dot" style="background: #ef4444;"></span>
-                        <span class="status-label">Off</span>
+                    <button class="status-btn" id="btnOff" onclick="selectTPMStatus('off')" style="padding: 16px; background: #1e293b; border: 2px solid #334155; border-radius: 12px; color: white; cursor: pointer;">
+                        <span class="status-dot" style="display: inline-block; width: 12px; height: 12px; background: #ef4444; border-radius: 50%; margin-bottom: 4px;"></span>
+                        <div>Off</div>
                     </button>
                 </div>
 
-                <div class="form-field">
-                    <label for="tpmNotes">Keterangan / Temuan</label>
-                    <textarea id="tpmNotes" rows="3" placeholder="Deskripsikan kondisi area..."></textarea>
+                <div class="form-field" style="margin-bottom: 16px;">
+                    <label for="tpmNotes" style="display: block; margin-bottom: 8px; color: #94a3b8;">Keterangan / Temuan</label>
+                    <textarea id="tpmNotes" rows="3" placeholder="Deskripsikan kondisi area..." style="width: 100%; padding: 12px; background: rgba(15, 23, 42, 0.6); border: 2px solid #334155; border-radius: 12px; color: white; resize: vertical;"></textarea>
                 </div>
 
                 <div class="form-field">
-                    <label for="tpmAction">Tindakan</label>
-                    <div class="select-wrapper">
-                        <select id="tpmAction">
-                            <option value="">Pilih tindakan...</option>
-                            <option value="Checking/Routine">Checking/Routine</option>
-                            <option value="Cleaning">Cleaning</option>
-                            <option value="Oiling/Lubrication">Oiling/Lubrication</option>
-                            <option value="Minor Repair">Minor Repair</option>
-                            <option value="Report to Maintenance">Report to Maintenance</option>
-                        </select>
-                        <svg class="select-arrow" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M6 9l6 6 6-6"/>
-                        </svg>
-                    </div>
+                    <label for="tpmAction" style="display: block; margin-bottom: 8px; color: #94a3b8;">Tindakan</label>
+                    <select id="tpmAction" style="width: 100%; padding: 12px; background: rgba(15, 23, 42, 0.6); border: 2px solid #334155; border-radius: 12px; color: white;">
+                        <option value="">Pilih tindakan...</option>
+                        <option value="Checking/Routine">Checking/Routine</option>
+                        <option value="Cleaning">Cleaning</option>
+                        <option value="Oiling/Lubrication">Oiling/Lubrication</option>
+                        <option value="Minor Repair">Minor Repair</option>
+                        <option value="Report to Maintenance">Report to Maintenance</option>
+                    </select>
                 </div>
             </div>
 
-            <button class="btn btn-submit btn-full" onclick="submitTPMData()">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polyline points="20 6 9 17 4 12"/>
-                </svg>
-                <span>Simpan Data TPM</span>
+            <button class="btn btn-submit btn-full" onclick="submitTPMData()" style="width: 100%; padding: 16px; background: #10b981; color: white; border: none; border-radius: 12px; font-weight: 600; cursor: pointer; margin-top: 20px;">
+                <span>💾 Simpan Data TPM</span>
             </button>
         </div>
     </div>
@@ -374,11 +394,7 @@
         <div class="areas-list" id="areaList"></div>
 
         <button class="btn btn-floating" id="submitBtn" onclick="sendToSheet()">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="22" y1="2" x2="11" y2="13"/>
-                <polygon points="22 2 15 22 11 13 2 9 22 2"/>
-            </svg>
-            <span>Kirim Data</span>
+            <span>📤 Kirim Data</span>
         </button>
     </div>
 
@@ -431,16 +447,10 @@
 
             <div class="action-bar">
                 <button class="btn btn-secondary" onclick="goBack()">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M19 12H5M12 19l-7-7 7-7"/>
-                    </svg>
                     <span>Kembali</span>
                 </button>
                 <button class="btn btn-primary btn-flex" onclick="saveStep()">
                     <span>Simpan</span>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M5 12h14M12 5l7 7-7 7"/>
-                    </svg>
                 </button>
             </div>
         </div>
