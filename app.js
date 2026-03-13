@@ -204,29 +204,45 @@ let autoCloseTimer = null;
 
 window.addEventListener('DOMContentLoaded', () => {
     totalParams = Object.values(AREAS).reduce((acc, arr) => acc + arr.length, 0);
-    document.getElementById('totalParams').textContent = totalParams;
-    document.getElementById('versionDisplay').textContent = APP_VERSION;
+    
+    // Hanya update jika elemen ada (defensive programming)
+    const versionDisplay = document.getElementById('versionDisplay');
+    if (versionDisplay) {
+        versionDisplay.textContent = APP_VERSION;
+    }
+    
     simulateLoading();
 });
 
 function simulateLoading() {
     let progress = 0;
+    const loaderProgress = document.getElementById('loaderProgress');
+    
     const interval = setInterval(() => {
         progress += Math.random() * 30;
         if (progress >= 100) {
             progress = 100;
             clearInterval(interval);
             setTimeout(() => {
-                document.getElementById('loader').style.display = 'none';
+                const loader = document.getElementById('loader');
+                if (loader) {
+                    loader.style.display = 'none';
+                }
                 renderMenu();
             }, 500);
         }
-        document.getElementById('loaderProgress').style.width = progress + '%';
+        
+        if (loaderProgress) {
+            loaderProgress.style.width = progress + '%';
+        }
     }, 300);
 }
 
 function showUpdateAlert() {
-    document.getElementById('updateAlert').classList.remove('hidden');
+    const updateAlert = document.getElementById('updateAlert');
+    if (updateAlert) {
+        updateAlert.classList.remove('hidden');
+    }
 }
 
 function applyUpdate() {
@@ -245,6 +261,12 @@ function showCustomAlert(msg, type = 'success') {
     const alertIconWrapper = document.getElementById('alertIconWrapper');
     const customAlert = document.getElementById('customAlert');
     
+    if (!customAlert || !alertContent || !alertTitle || !alertIconWrapper) {
+        console.error('Alert elements not found');
+        alert(msg); // Fallback ke alert native
+        return;
+    }
+    
     // Clear previous auto-close timer
     if (autoCloseTimer) {
         clearTimeout(autoCloseTimer);
@@ -253,7 +275,10 @@ function showCustomAlert(msg, type = 'success') {
     
     // Set content
     alertTitle.textContent = type === 'success' ? 'Berhasil' : 'Error';
-    document.getElementById('alertMessage').innerText = msg;
+    const alertMessage = document.getElementById('alertMessage');
+    if (alertMessage) {
+        alertMessage.innerText = msg;
+    }
     
     // Set styling class
     alertContent.className = 'alert-content ' + type;
@@ -292,7 +317,9 @@ function showCustomAlert(msg, type = 'success') {
 
 function closeAlert() {
     const customAlert = document.getElementById('customAlert');
-    customAlert.classList.add('hidden');
+    if (customAlert) {
+        customAlert.classList.add('hidden');
+    }
     
     // Clear timer if manually closed
     if (autoCloseTimer) {
@@ -310,11 +337,13 @@ function navigateTo(screenId) {
     });
     
     const targetScreen = document.getElementById(screenId);
-    targetScreen.classList.add('active');
-    
-    if (screenId === 'areaListScreen') {
-        fetchLastData();
-        updateOverallProgress();
+    if (targetScreen) {
+        targetScreen.classList.add('active');
+        
+        if (screenId === 'areaListScreen') {
+            fetchLastData();
+            updateOverallProgress();
+        }
     }
 }
 
@@ -349,17 +378,23 @@ function fetchLastData() {
 
 function updateStatusIndicator(isOnline) {
     const statusPill = document.getElementById('statusPill');
+    if (!statusPill) return;
+    
+    const statusText = statusPill.querySelector('.status-text');
+    
     if (isOnline) {
         statusPill.className = 'status-indicator online';
-        statusPill.querySelector('.status-text').textContent = 'Online';
+        if (statusText) statusText.textContent = 'Online';
     } else {
         statusPill.className = 'status-indicator offline';
-        statusPill.querySelector('.status-text').textContent = 'Offline';
+        if (statusText) statusText.textContent = 'Offline';
     }
 }
 
 function renderMenu() {
     const list = document.getElementById('areaList');
+    if (!list) return;
+    
     const totalAreas = Object.keys(AREAS).length;
     let completedAreas = 0;
     
@@ -401,12 +436,12 @@ function renderMenu() {
     list.innerHTML = html;
     
     const hasData = Object.keys(currentInput).length > 0;
-    document.getElementById('submitBtn').style.display = hasData ? 'flex' : 'none';
+    const submitBtn = document.getElementById('submitBtn');
+    if (submitBtn) {
+        submitBtn.style.display = hasData ? 'flex' : 'none';
+    }
     
-    const overallPercent = Math.round((completedAreas / totalAreas) * 100);
-    document.getElementById('progressText').textContent = `${overallPercent}% Complete`;
-    document.getElementById('overallPercent').textContent = `${overallPercent}%`;
-    document.getElementById('overallProgressBar').style.width = `${overallPercent}%`;
+    updateOverallProgressUI(completedAreas, totalAreas);
 }
 
 function updateOverallProgress() {
@@ -418,23 +453,39 @@ function updateOverallProgress() {
         if (filled === params.length && filled > 0) completedAreas++;
     });
     
+    updateOverallProgressUI(completedAreas, totalAreas);
+}
+
+function updateOverallProgressUI(completedAreas, totalAreas) {
     const percent = Math.round((completedAreas / totalAreas) * 100);
-    document.getElementById('progressText').textContent = `${percent}% Complete`;
-    document.getElementById('overallPercent').textContent = `${percent}%`;
-    document.getElementById('overallProgressBar').style.width = `${percent}%`;
+    
+    const progressText = document.getElementById('progressText');
+    const overallPercent = document.getElementById('overallPercent');
+    const overallProgressBar = document.getElementById('overallProgressBar');
+    
+    if (progressText) progressText.textContent = `${percent}% Complete`;
+    if (overallPercent) overallPercent.textContent = `${percent}%`;
+    if (overallProgressBar) overallProgressBar.style.width = `${percent}%`;
 }
 
 function openArea(areaName) {
     activeArea = areaName;
     activeIdx = 0;
     navigateTo('paramScreen');
-    document.getElementById('currentAreaName').textContent = areaName;
+    
+    const currentAreaName = document.getElementById('currentAreaName');
+    if (currentAreaName) {
+        currentAreaName.textContent = areaName;
+    }
+    
     renderProgressDots();
     showStep();
 }
 
 function renderProgressDots() {
     const container = document.getElementById('progressDots');
+    if (!container) return;
+    
     const total = AREAS[activeArea].length;
     let html = '';
     
@@ -480,14 +531,21 @@ function showStep() {
     const inputType = detectInputType(fullLabel);
     currentInputType = inputType.type;
     
-    document.getElementById('stepInfo').textContent = `Step ${activeIdx + 1}/${total}`;
-    document.getElementById('areaProgress').textContent = `${activeIdx + 1}/${total}`;
-    document.getElementById('labelInput').textContent = getParamName(fullLabel);
-    document.getElementById('lastTimeLabel').textContent = lastData._lastTime || '--:--';
-    document.getElementById('prevValDisplay').textContent = lastData[fullLabel] || '--';
-    
-    const inputContainer = document.getElementById('inputFieldContainer');
+    const stepInfo = document.getElementById('stepInfo');
+    const areaProgress = document.getElementById('areaProgress');
+    const labelInput = document.getElementById('labelInput');
+    const lastTimeLabel = document.getElementById('lastTimeLabel');
+    const prevValDisplay = document.getElementById('prevValDisplay');
+    const inputFieldContainer = document.getElementById('inputFieldContainer');
     const unitDisplay = document.getElementById('unitDisplay');
+    const mainInputWrapper = document.getElementById('mainInputWrapper');
+    
+    if (stepInfo) stepInfo.textContent = `Step ${activeIdx + 1}/${total}`;
+    if (areaProgress) areaProgress.textContent = `${activeIdx + 1}/${total}`;
+    if (labelInput) labelInput.textContent = getParamName(fullLabel);
+    if (lastTimeLabel) lastTimeLabel.textContent = lastData._lastTime || '--:--';
+    if (prevValDisplay) prevValDisplay.textContent = lastData[fullLabel] || '--';
+    
     const currentValue = (currentInput[activeArea] && currentInput[activeArea][fullLabel]) || '';
     
     if (inputType.type === 'select') {
@@ -497,28 +555,35 @@ function showStep() {
             optionsHtml += `<option value="${opt}" ${selected}>${opt}</option>`;
         });
         
-        inputContainer.innerHTML = `
-            <div class="select-wrapper">
-                <select id="valInput" class="status-select">
-                    ${optionsHtml}
-                </select>
-                <div class="select-arrow">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M6 9l6 6 6-6"/>
-                    </svg>
+        if (inputFieldContainer) {
+            inputFieldContainer.innerHTML = `
+                <div class="select-wrapper">
+                    <select id="valInput" class="status-select">
+                        ${optionsHtml}
+                    </select>
+                    <div class="select-arrow">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M6 9l6 6 6-6"/>
+                        </svg>
+                    </div>
                 </div>
-            </div>
-        `;
+            `;
+        }
         
-        unitDisplay.style.display = 'none';
-        document.getElementById('mainInputWrapper').classList.add('has-select');
+        if (unitDisplay) unitDisplay.style.display = 'none';
+        if (mainInputWrapper) mainInputWrapper.classList.add('has-select');
     } else {
-        inputContainer.innerHTML = `
-            <input type="text" id="valInput" inputmode="decimal" placeholder="0.00" value="${currentValue}" autocomplete="off">
-        `;
-        unitDisplay.textContent = getUnit(fullLabel) || '--';
-        unitDisplay.style.display = 'flex';
-        document.getElementById('mainInputWrapper').classList.remove('has-select');
+        if (inputFieldContainer) {
+            inputFieldContainer.innerHTML = `
+                <input type="text" id="valInput" inputmode="decimal" placeholder="0.00" value="${currentValue}" autocomplete="off">
+            `;
+        }
+        
+        if (unitDisplay) {
+            unitDisplay.textContent = getUnit(fullLabel) || '--';
+            unitDisplay.style.display = 'flex';
+        }
+        if (mainInputWrapper) mainInputWrapper.classList.remove('has-select');
     }
     
     const dots = document.querySelectorAll('.progress-dot');
@@ -572,8 +637,14 @@ function goBack() {
 
 async function sendToSheet() {
     const loader = document.getElementById('loader');
-    loader.style.display = 'flex';
-    document.querySelector('.loader-text h3').textContent = 'Mengirim Data...';
+    if (loader) {
+        loader.style.display = 'flex';
+    }
+    
+    const loaderText = document.querySelector('.loader-text h3');
+    if (loaderText) {
+        loaderText.textContent = 'Mengirim Data...';
+    }
     
     const finalData = {};
     Object.values(currentInput).forEach(obj => Object.assign(finalData, obj));
@@ -599,12 +670,15 @@ async function sendToSheet() {
     } catch (error) {
         showCustomAlert('Gagal mengirim data. Periksa koneksi internet.', 'error');
     } finally {
-        loader.style.display = 'none';
+        if (loader) {
+            loader.style.display = 'none';
+        }
     }
 }
 
 document.addEventListener('keydown', (e) => {
-    if (!document.getElementById('paramScreen').classList.contains('active')) return;
+    const paramScreen = document.getElementById('paramScreen');
+    if (!paramScreen || !paramScreen.classList.contains('active')) return;
     
     if (e.key === 'Enter') {
         e.preventDefault();
