@@ -3,11 +3,50 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="theme-color" content="#0f172a">
+    
+    <!-- Theme Colors untuk Status Bar (TAMBAHAN BARU) -->
+    <meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: dark)">
+    <meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: light)">
+    
+    <!-- iOS Specific (TAMBAHAN BARU) -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Turbine Log"> <!-- Ini yang buat title di home screen -->
+    
+    <!-- Android/Chrome Specific (TAMBAHAN BARU) -->
     <meta name="mobile-web-app-capable" content="yes">
+    <meta name="application-name" content="Turbine Log">
+    <meta name="msapplication-TileColor" content="#0f172a">
+    <meta name="msapplication-tap-highlight" content="no">
+    <meta name="msapplication-starturl" content="./index.html">
+    
+    <!-- SEO & Description (SUDAH ADA - TETAP) -->
     <meta name="description" content="Turbine Logsheet Professional - PT Petrokimia Gresik">
+    <meta name="author" content="Unit Utilitas 3B">
+    <meta name="robots" content="noindex, nofollow"> <!-- TAMBAHAN BARU -->
+    
+    <!-- Manifest (SUDAH ADA - TETAP) -->
+    <link rel="manifest" href="manifest.json?v=1.2.0">
+    
+    <!-- Icons untuk iOS (Apple Touch Icons) - TAMBAHAN BARU -->
+    <link rel="apple-touch-icon" href="icon-192x192.png">
+    <link rel="apple-touch-icon" sizes="72x72" href="icon-72x72.png">
+    <link rel="apple-touch-icon" sizes="96x96" href="icon-96x96.png">
+    <link rel="apple-touch-icon" sizes="128x128" href="icon-128x128.png">
+    <link rel="apple-touch-icon" sizes="144x144" href="icon-144x144.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="icon-152x152.png">
+    <link rel="apple-touch-icon" sizes="192x192" href="icon-192x192.png">
+    <link rel="apple-touch-icon" sizes="384x384" href="icon-384x384.png">
+    <link rel="apple-touch-icon" sizes="512x512" href="icon-512x512.png">
+    
+    <!-- Favicon (TAMBAHAN BARU) -->
+    <link rel="icon" type="image/png" sizes="32x32" href="icon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="icon-16x16.png">
+    <link rel="shortcut icon" href="icon-192x192.png">
+    
+    <!-- Preconnect untuk performa (TAMBAHAN BARU) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     
     <title>Turbine Logsheet Pro</title>
     
