@@ -1858,6 +1858,119 @@ async function submitBalancingData() {
 }
 
 // ============================================
+// PWA INSTALLATION HANDLER
+// ============================================
+
+let deferredPrompt;
+let installButton = null;
+
+window.addEventListener('beforeinstallprompt', (e) => {
+    // Prevent Chrome 67 and earlier from automatically showing the prompt
+    e.preventDefault();
+    // Stash the event so it can be triggered later
+    deferredPrompt = e;
+    
+    // Show install button atau UI
+    showInstallPromotion();
+    
+    console.log('PWA install available');
+});
+
+window.addEventListener('appinstalled', () => {
+    // Hide the app-provided install promotion
+    hideInstallPromotion();
+    // Clear the deferredPrompt so it can be garbage collected
+    deferredPrompt = null;
+    // Optionally, send analytics event to indicate successful install
+    console.log('PWA was installed');
+    showCustomAlert('Aplikasi berhasil diinstall!', 'success');
+});
+
+function showInstallPromotion() {
+    // Bisa tambahkan banner install di UI
+    const installBanner = document.createElement('div');
+    installBanner.id = 'installBanner';
+    installBanner.innerHTML = `
+        <div style="position: fixed; bottom: 80px; left: 16px; right: 16px; 
+                    background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); 
+                    color: white; padding: 16px; border-radius: 12px; 
+                    box-shadow: 0 4px 20px rgba(0,0,0,0.3); z-index: 9999;
+                    display: flex; align-items: center; justify-content: space-between;
+                    animation: slideUp 0.3s ease;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                <div>
+                    <div style="font-weight: 600;">Install Aplikasi</div>
+                    <div style="font-size: 0.75rem; opacity: 0.9;">Akses lebih cepat tanpa browser</div>
+                </div>
+            </div>
+            <button onclick="installPWA()" style="background: white; color: #1d4ed8; 
+                                                   border: none; padding: 8px 16px; 
+                                                   border-radius: 8px; font-weight: 600; 
+                                                   cursor: pointer; white-space: nowrap;">
+                Install
+            </button>
+            <button onclick="hideInstallPromotion()" style="background: transparent; 
+                                                            border: none; color: white; 
+                                                            margin-left: 8px; cursor: pointer;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 6L6 18M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+    `;
+    document.body.appendChild(installBanner);
+}
+
+function hideInstallPromotion() {
+    const banner = document.getElementById('installBanner');
+    if (banner) banner.remove();
+}
+
+async function installPWA() {
+    if (!deferredPrompt) {
+        // Jika tidak ada prompt (sudah terinstall atau tidak support)
+        showCustomAlert('Aplikasi sudah terinstall atau browser tidak mendukung', 'info');
+        return;
+    }
+    
+    // Show the install prompt
+    deferredPrompt.prompt();
+    
+    // Wait for the user to respond to the prompt
+    const { outcome } = await deferredPrompt.userChoice;
+    
+    if (outcome === 'accepted') {
+        console.log('User accepted the install prompt');
+        hideInstallPromotion();
+    } else {
+        console.log('User dismissed the install prompt');
+    }
+    
+    // We've used the prompt, and can't use it again, throw it away
+    deferredPrompt = null;
+}
+
+// Check if app is installed (display-mode: standalone)
+function isAppInstalled() {
+    return window.matchMedia('(display-mode: standalone)').matches || 
+           window.navigator.standalone === true;
+}
+
+// Check on load
+window.addEventListener('load', () => {
+    if (isAppInstalled()) {
+        console.log('App is running in standalone mode');
+        // Hide any install buttons if shown
+        hideInstallPromotion();
+    }
+});
+
+// ============================================
 // KEYBOARD EVENTS
 // ============================================
 document.addEventListener('keydown', (e) => {
