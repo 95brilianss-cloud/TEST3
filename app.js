@@ -1,7 +1,7 @@
 // ============================================
 // TURBINE LOGSHEET PRO - VERSION CONTROL
 // ============================================
-const APP_VERSION = '1.2.0'; // Updated with Balancing feature
+const APP_VERSION = '1.1.4'; // Updated with Balancing feature
 
 // ============================================
 // AUTHENTICATION SYSTEM
@@ -250,7 +250,7 @@ function loadUserStats() {
 // ============================================
 // CONFIGURATION
 // ============================================
-const GAS_URL = "https://script.google.com/macros/s/AKfycbz30vHFmRl3MVX-kt8XiUxowhqX1rx0fTYCiGQoKo3e_w5DdblfyP6kU-UKbjMSx3_R/exec";
+const GAS_URL = "https://script.google.com/macros/s/AKfycbyXcwDKaifFI44PhViy2yQewwhujDiIl3PRt46l66nmGobJ0iy7MH1gfYvFZVEVIPms/exec";
 
 const INPUT_TYPES = {
     PUMP_STATUS: {
