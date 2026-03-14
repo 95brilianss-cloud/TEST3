@@ -1220,6 +1220,7 @@ function detectShift() {
 function setDefaultBalancingValues() {
     const defaults = {
         'hvs65Current': '1',
+        'hvs65l02Current': '1',
         'puri2Steam': '1.4',
         'deaeratorSteam': '2.5',
         'dumpCondenser': '5.0',
@@ -1452,6 +1453,7 @@ async function submitBalancingData() {
         'Current_S_A': parseFloat(document.getElementById('currentS')?.value) || 0,
         'Voltage_V': parseFloat(document.getElementById('voltageV')?.value) || 0,
         'HVS65_L02_MW': parseFloat(document.getElementById('hvs65l02MW')?.value) || 0,
+        'HVS65_L02_Current_A': parseFloat(document.getElementById('hvs65l02Current')?.value) || 0,
         'Total_3B_MW': parseFloat(document.getElementById('total3BMW')?.value) || 0,
         
         'Produksi_Steam_SA_t/h': parseFloat(document.getElementById('fq1105')?.value) || 0,
