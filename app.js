@@ -2065,33 +2065,6 @@ function isAppInstalled() {
            window.navigator.standalone === true ||
            document.referrer.includes('android-app://');
 }
-// TAMBAHKAN FUNGSI INI DI SINI
-function showInstallButtonInMenu() {
-    if (!isAppInstalled() && deferredPrompt) {
-        // Tampilkan tombol install di menu
-        const installBtn = document.getElementById('menuInstallBtn');
-        if (installBtn) {
-            installBtn.style.display = 'flex';
-            console.log('Install button shown in menu');
-        }
-    } else {
-        // Sembunyikan jika sudah install
-        const installBtn = document.getElementById('menuInstallBtn');
-        if (installBtn) installBtn.style.display = 'none';
-    }
-}
-
-// Cek saat load
-window.addEventListener('load', () => {
-    if (isAppInstalled()) {
-        console.log('App running in standalone mode');
-        hideCustomInstallBanner();
-    } else {
-        // Tunggu sebentar lalu cek apakah bisa install
-        setTimeout(showInstallButtonInMenu, 2000);
-    }
-});
-
 // Tambahan animasi CSS via JS
 const style = document.createElement('style');
 style.textContent = `
