@@ -1,7 +1,7 @@
 // ============================================
 // TURBINE LOGSHEET PRO - VERSION CONTROL
 // ============================================
-const APP_VERSION = '1.1.6'; // Updated with Balancing feature
+const APP_VERSION = '1.1.7'; // Updated with Balancing feature
 
 // ============================================
 // AUTHENTICATION SYSTEM
@@ -1494,7 +1494,31 @@ async function submitBalancingData() {
         });
         
         showCustomAlert('✓ Data Balancing berhasil dikirim!', 'success');
+        // ===== TAMBAHAN: AUTO OPEN WHATSAPP =====
+        // Format pesan yang akan dikirim ke WA
+        const waMessage = encodeURIComponent(
+            `*Update Balancing STG 17,5 MW*\n\n` +
+            `📅 Tanggal: ${balancingData.Tanggal}\n` +
+            `🕐 Jam: ${balancingData.Jam}\n` +
+            `👤 Operator: ${balancingData.Operator}\n` +
+            `🔄 Shift: ${balancingData.Shift}\n\n` +
+            `⚡ *Load:* ${balancingData.Load_MW} MW\n` +
+            `${balancingData.Ekspor_Impor_Status === 'Ekspor' ? '📤' : '📥'} *${balancingData.Ekspor_Impor_Status}:* ${Math.abs(balancingData.Ekspor_Impor_MW)} MW\n\n` +
+            `🔥 *Produksi Steam:* ${balancingData['Produksi_Steam_SA_t/h']} t/h\n` +
+            `💨 *Total Konsumsi:* ${balancingData['Total_Konsumsi_Steam_t/h']} t/h\n` +
+            `${balancingData.LPS_Balance_Status.includes('Ekspor') ? '📤' : '📥'} *${balancingData.LPS_Balance_Status}:* ${balancingData['LPS_Balance_t/h']} t/h\n\n` +
+            `✅ Data sudah tersimpan di sistem`
+        );
         
+        // Nomor WA tujuan (ganti dengan nomor grup/operator)
+        // Format: 6281234567890 (tanpa + atau 0 di depan)
+        const waNumber = '6282233069673'; // ⚠️ GANTI DENGAN NOMOR WA ANDA
+        
+        // Buka WhatsApp setelah 1.5 detik (tunggu alert muncul dulu)
+        setTimeout(() => {
+            window.open(`https://wa.me/${waNumber}?text=${waMessage}`, '_blank');
+        }, 1500);
+        // ==========================================================================
         let balancingHistory = JSON.parse(localStorage.getItem('balancing_history') || '[]');
         balancingHistory.push({
             ...balancingData,
