@@ -1,7 +1,7 @@
 // ============================================
 // TURBINE LOGSHEET PRO - VERSION CONTROL
 // ============================================
-const APP_VERSION = '1.1.8'; // Updated with Balancing feature
+const APP_VERSION = '1.1.9'; // Updated with Balancing feature
 
 // ============================================
 // AUTHENTICATION SYSTEM
@@ -418,18 +418,24 @@ let currentShift = 3;
 // ============================================
 
 function formatWhatsAppMessage(data) {
-    // Format angka dengan koma untuk desimal (Indonesia)
-    const formatNum = (num, decimals = 2) => {
-        if (num === undefined || num === null || num === '') return '-';
-        return parseFloat(num).toLocaleString('id-ID', {
-            minimumFractionDigits: decimals,
-            maximumFractionDigits: decimals
+    // Format angka Indonesia tanpa trailing zeros (12.00 -> 12, 12.50 -> 12,5)
+    const formatNum = (num, maxDecimals = 2) => {
+        if (num === undefined || num === null || num === '' || isNaN(num)) return '-';
+        const parsed = parseFloat(num);
+        if (parsed === 0) return '0';
+        
+        // Convert ke string dengan locale Indonesia
+        let formatted = parsed.toLocaleString('id-ID', {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: maxDecimals
         });
+        
+        return formatted;
     };
     
-    // Format integer tanpa desimal
+    // Format integer
     const formatInt = (num) => {
-        if (num === undefined || num === null || num === '') return '-';
+        if (num === undefined || num === null || num === '' || isNaN(num)) return '-';
         return parseInt(num).toLocaleString('id-ID');
     };
     
@@ -447,16 +453,16 @@ function formatWhatsAppMessage(data) {
     message += `Jam ${data.Jam}\n\n`;
     
     message += `*Output Power STG 17,5*\n`;
-    message += `⠂ Load = ${formatNum(data.Load_MW, 2)} MW\n`;
+    message += `⠂ Load = ${formatNum(data.Load_MW)} MW\n`;
     message += `⠂ ${data.Ekspor_Impor_Status} = ${formatNum(Math.abs(data.Ekspor_Impor_MW), 3)} MW\n\n`;
     
     message += `*Balance Power SCADA*\n`;
-    message += `⠂ PLN = ${formatNum(data.PLN_MW, 2)}MW\n`;
-    message += `⠂ UBB = ${formatNum(data.UBB_MW, 2)}MW\n`;
-    message += `⠂ PIE = ${formatNum(data.PIE_MW, 2)} MW\n`;
-    message += `⠂ TG-65 = ${formatNum(data.TG65_MW, 2)} MW\n`;
-    message += `⠂ TG-66 = ${formatNum(data.TG66_MW, 2)} MW\n`;
-    message += `⠂ GTG = ${formatNum(data.GTG_MW, 2)} MW\n\n`;
+    message += `⠂ PLN = ${formatNum(data.PLN_MW)}MW\n`;
+    message += `⠂ UBB = ${formatNum(data.UBB_MW)}MW\n`;
+    message += `⠂ PIE = ${formatNum(data.PIE_MW)} MW\n`;
+    message += `⠂ TG-65 = ${formatNum(data.TG65_MW)} MW\n`;
+    message += `⠂ TG-66 = ${formatNum(data.TG66_MW)} MW\n`;
+    message += `⠂ GTG = ${formatNum(data.GTG_MW)} MW\n\n`;
     
     message += `*Konsumsi Power 3B*\n`;
     message += `● SS-6500 (TR-Main 01) = ${formatNum(data.SS6500_MW, 3)} MW\n`;
@@ -472,29 +478,31 @@ function formatWhatsAppMessage(data) {
     message += `⠂ FQ-1105 = ${formatNum(data['Produksi_Steam_SA_t/h'], 1)} t/h\n\n`;
     
     message += `*Konsumsi Steam 3B*\n`;
-    message += `⠂ STG 17,5 = ${formatNum(data.STG_Steam_t_h, 1)} t/h\n`;
-    message += `⠂ PA2 = ${formatNum(data.PA2_Steam_t_h, 1)} t/h\n`;
-    message += `⠂ Puri2 = ${formatNum(data.Puri2_Steam_t_h, 1)} t/h\n`;
-    message += `⠂ Melter SA2 = ${formatNum(data.Melter_SA2_t_h, 1)} t/h\n`;
-    message += `⠂ Ejector = ${formatNum(data.Ejector_t_h, 1)} t/h\n`;
-    message += `⠂ Gland Seal = ${formatNum(data.Gland_Seal_t_h, 1)} t/h\n`;
-    message += `⠂ Deaerator = ${formatNum(data.Deaerator_t_h, 1)} t/h\n`;
-    message += `⠂ Dump Condenser = ${formatNum(data.Dump_Condenser_t_h, 1)} t/h\n`;
-    message += `⠂ PCV-6105 = ${formatNum(data.PCV6105_t_h, 1)} t/h\n`;
+    // Perbaikan nama variabel sesuai data yang dikirim
+    message += `⠂ STG 17,5 = ${formatNum(data.STG_Steam_t_h || data.STG_Steam, 1)} t/h\n`;
+    message += `⠂ PA2 = ${formatNum(data.PA2_Steam_t_h || data.PA2_Steam, 1)} t/h\n`;
+    message += `⠂ Puri2 = ${formatNum(data.Puri2_Steam_t_h || data.Puri2_Steam, 1)} t/h\n`;
+    message += `⠂ Melter SA2 = ${formatNum(data.Melter_SA2_t_h || data.Melter_SA2, 1)} t/h\n`;
+    message += `⠂ Ejector = ${formatNum(data.Ejector_t_h || data.Ejector, 1)} t/h\n`;
+    message += `⠂ Gland Seal = ${formatNum(data.Gland_Seal_t_h || data.Gland_Seal, 1)} t/h\n`;
+    message += `⠂ Deaerator = ${formatNum(data.Deaerator_t_h || data.Deaerator, 1)} t/h\n`;
+    message += `⠂ Dump Condenser = ${formatNum(data.Dump_Condenser_t_h || data.Dump_Condenser, 1)} t/h\n`;
+    message += `⠂ PCV-6105 = ${formatNum(data.PCV6105_t_h || data.PCV6105, 1)} t/h\n`;
     message += `*⠂ Total Konsumsi* = ${formatNum(data['Total_Konsumsi_Steam_t/h'], 1)} t/h\n\n`;
     
-    const lpsEmoji = data.LPS_Balance_Status.includes('Ekspor') ? '📤' : '📥';
-    message += `${lpsEmoji} *${data.LPS_Balance_Status}* = ${formatNum(data['LPS_Balance_t/h'], 1)} t/h\n\n`;
+    // HAPUS EMOJI DI SINI (yang tadi ${lpsEmoji})
+    message += `*${data.LPS_Balance_Status}* = ${formatNum(data['LPS_Balance_t/h'], 1)} t/h\n\n`;
     
     message += `*Monitoring*\n`;
-    message += `⠂ Steam Extraction PI-6122 = ${formatNum(data.PI6122_kg_cm2, 2)} kg/cm² & TI-6112 = ${formatNum(data.TI6112_C, 1)} °C\n`;
-    message += `⠂ Temp. Cooling Air Inlet (TI-6146/47) = ${formatNum(data.TI6146_C, 2)} °C\n`;
-    message += `⠂ Temp. Lube Oil (TI-6126) = ${formatNum(data.TI6126_C, 2)} °C\n`;
-    message += `⠂ Axial Displacement = ${formatNum(data.Axial_Displacement_mm, 2)} mm (High : 0,6 mm)\n`;
-    message += `⠂ Vibrasi VI-6102 = ${formatNum(data.VI6102_μm, 2)} μm (High : 85 μm)\n`;
-    message += `⠂ Temp. Journal Bearing TE-6134 = ${formatNum(data.TE6134_C, 1)} °C (High : 115 °C)\n`;
-    message += `⠂ CT SU = Fan : ${formatInt(data.CT_SU_Fan)} & Pompa : ${formatInt(data.CT_SU_Pompa)}\n`;
-    message += `⠂ CT SA = Fan : ${formatInt(data.CT_SA_Fan)} & Pompa : ${formatInt(data.CT_SA_Pompa)}\n\n`;
+    // Perbaikan nama variabel untuk monitoring
+    message += `⠂ Steam Extraction PI-6122 = ${formatNum(data.PI6122_kg_cm2 || data.pi6122, 2)} kg/cm² & TI-6112 = ${formatNum(data.TI6112_C || data.ti6112, 1)} °C\n`;
+    message += `⠂ Temp. Cooling Air Inlet (TI-6146/47) = ${formatNum(data.TI6146_C || data.ti6146, 2)} °C\n`;
+    message += `⠂ Temp. Lube Oil (TI-6126) = ${formatNum(data.TI6126_C || data.ti6126, 2)} °C\n`;
+    message += `⠂ Axial Displacement = ${formatNum(data.Axial_Displacement_mm || data.axialDisplacement, 2)} mm (High : 0,6 mm)\n`;
+    message += `⠂ Vibrasi VI-6102 = ${formatNum(data.VI6102_μm || data.vi6102, 2)} μm (High : 85 μm)\n`;
+    message += `⠂ Temp. Journal Bearing TE-6134 = ${formatNum(data.TE6134_C || data.te6134, 1)} °C (High : 115 °C)\n`;
+    message += `⠂ CT SU = Fan : ${formatInt(data.CT_SU_Fan || data.ctSuFan)} & Pompa : ${formatInt(data.CT_SU_Pompa || data.ctSuPompa)}\n`;
+    message += `⠂ CT SA = Fan : ${formatInt(data.CT_SA_Fan || data.ctSaFan)} & Pompa : ${formatInt(data.CT_SA_Pompa || data.ctSaPompa)}\n\n`;
     
     message += `*Kegiatan Shift ${data.Shift}*\n`;
     message += data.Kegiatan_Shift || '-';
