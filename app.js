@@ -1,7 +1,7 @@
 // ============================================
 // TURBINE LOGSHEET PRO - VERSION CONTROL
 // ============================================
-const APP_VERSION = '1.1.5'; // Updated with Balancing feature
+const APP_VERSION = '1.1.6'; // Updated with Balancing feature
 
 // ============================================
 // AUTHENTICATION SYSTEM
@@ -1183,7 +1183,7 @@ function initBalancingScreen() {
     
     detectShift();
     setDefaultBalancingValues();
-    calculateTotal3B();
+    //calculateTotal3B(); //
     calculateLPBalance();
 }
 
