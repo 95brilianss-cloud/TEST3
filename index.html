@@ -11,7 +11,7 @@
     
     <title>Turbine Logsheet Pro</title>
     
-    <!-- Inline Critical CSS (Backup jika style.css gagal) -->
+    <!-- Inline Critical CSS -->
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         html, body { 
@@ -23,8 +23,8 @@
         .screen { display: none; min-height: 100vh; }
         .screen.active { display: block; }
         #loginScreen.active { display: flex !important; flex-direction: column; }
+        #balancingScreen.active { display: block; }
         
-        /* Critical styles untuk memastikan tampilan muncul */
         .loader-overlay {
             position: fixed; inset: 0; background: #0f172a;
             display: flex; align-items: center; justify-content: center;
@@ -37,39 +37,148 @@
         }
         .custom-alert.hidden { display: none; }
         
-        /* Login screen critical */
-        .login-container {
-            min-height: 100vh; display: flex; flex-direction: column;
-            padding: 16px; justify-content: center;
+        /* Balancing Specific Styles */
+        .input-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 12px;
         }
-        .login-header { text-align: center; margin-bottom: 24px; }
-        .logo-fallback {
-            width: 120px; height: 120px; margin: 0 auto 16px;
-            background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
-            border-radius: 20px; display: flex; align-items: center;
-            justify-content: center; font-size: 4rem;
-        }
-        .app-title { font-size: 1.5rem; font-weight: 700; margin-bottom: 8px; }
-        .app-subtitle { font-size: 0.875rem; color: #94a3b8; }
+        .input-grid.three-col { grid-template-columns: repeat(3, 1fr); }
+        .input-grid.two-col { grid-template-columns: 1fr 1fr; }
         
-        .login-form {
-            background: rgba(30, 41, 59, 0.8);
-            border: 1px solid rgba(148, 163, 184, 0.2);
-            border-radius: 16px; padding: 24px;
+        @media (max-width: 360px) {
+            .input-grid.three-col { grid-template-columns: 1fr 1fr; }
         }
-        .login-input {
-            width: 100%; padding: 12px 16px;
+        
+        .info-field {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .info-field label {
+            font-size: 0.75rem;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .auto-field {
+            background: rgba(14, 165, 233, 0.1) !important;
+            border-color: #0ea5e9 !important;
+            color: #38bdf8 !important;
+            font-weight: 600;
+            text-align: center;
+        }
+        .shift-badge {
+            display: inline-block;
+            padding: 4px 16px;
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            color: white;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+        }
+        .sub-section {
+            background: rgba(15, 23, 42, 0.4);
+            border-radius: 12px;
+            padding: 12px;
+            margin: 12px 0;
+            border: 1px solid rgba(148, 163, 184, 0.2);
+        }
+        .nested-inputs {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid rgba(148, 163, 184, 0.2);
+        }
+        .calculated-field input {
+            background: rgba(16, 185, 129, 0.1) !important;
+            border-color: #10b981 !important;
+            color: #10b981 !important;
+            font-weight: 700;
+            font-size: 1.125rem;
+        }
+        .calculated-field.highlight-impor input.impor-indicator {
+            background: rgba(245, 158, 11, 0.1) !important;
+            border-color: #f59e0b !important;
+            color: #f59e0b !important;
+        }
+        .highlight-field input {
+            background: rgba(14, 165, 233, 0.05);
+            border-color: #0ea5e9;
+        }
+        .with-select select {
+            width: 100%;
+            padding: 12px 16px;
             background: rgba(15, 23, 42, 0.6);
             border: 2px solid rgba(148, 163, 184, 0.2);
-            border-radius: 12px; color: #f8fafc;
-            font-size: 1rem; text-align: center; margin-bottom: 16px;
+            border-radius: 8px;
+            color: #f8fafc;
+            font-size: 0.9375rem;
         }
-        .btn-primary {
-            width: 100%; padding: 14px; background: #0ea5e9;
-            color: white; border: none; border-radius: 12px;
-            font-size: 1rem; font-weight: 600; cursor: pointer;
+        .calculation-result {
+            border: 1px dashed #0ea5e9;
+            margin: 12px 0;
+            padding: 12px;
+            background: rgba(14, 165, 233, 0.1);
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
-        .login-error { color: #ef4444; font-size: 0.75rem; text-align: center; display: none; }
+        .monitoring-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        .monitoring-item {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+        }
+        .monitoring-item:last-child {
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+        .monitoring-item label {
+            font-size: 0.75rem;
+            color: #94a3b8;
+            font-weight: 500;
+        }
+        .limit-input {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        .limit-input input { flex: 1; }
+        .limit-badge {
+            padding: 4px 8px;
+            background: rgba(239, 68, 68, 0.1);
+            color: #ef4444;
+            border-radius: 4px;
+            font-size: 0.6875rem;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        .btn-sm {
+            padding: 8px 12px;
+            font-size: 0.875rem;
+            min-height: 36px;
+        }
+        
+        /* Ekspor/Impor Dynamic Styles */
+        #eksporLabel { transition: color 0.3s ease; }
+        #eksporMW { transition: all 0.3s ease; }
+        #eksporMW[data-state="ekspor"] {
+            border-color: #10b981 !important;
+            background: rgba(16, 185, 129, 0.05);
+        }
+        #eksporMW[data-state="impor"] {
+            border-color: #f59e0b !important;
+            background: rgba(245, 158, 11, 0.05);
+        }
     </style>
     
     <link rel="stylesheet" href="style.css?v=1.2.0">
@@ -138,7 +247,7 @@
 
 <div class="app-container">
     
-    <!-- LOGIN SCREEN - PASTIKAN INI PERTAMA DAN AKTIF -->
+    <!-- LOGIN SCREEN -->
     <div id="loginScreen" class="screen active">
         <div class="login-container">
             <div class="login-header">
@@ -224,6 +333,19 @@
                 <div class="menu-content">
                     <h3>Mulai TPM</h3>
                     <p>Total Productive Maintenance</p>
+                </div>
+            </div>
+
+            <!-- MENU BALANCING BARU -->
+            <div class="menu-card success" onclick="navigateTo('balancingScreen')" style="border-left: 4px solid #10b981;">
+                <div class="menu-icon" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                    </svg>
+                </div>
+                <div class="menu-content">
+                    <h3>Input Balancing</h3>
+                    <p>Update Balancing Power & Steam</p>
                 </div>
             </div>
         </div>
@@ -442,6 +564,304 @@
                     <span>Simpan</span>
                 </button>
             </div>
+        </div>
+    </div>
+
+    <!-- BALANCING INPUT SCREEN - BARU -->
+    <div id="balancingScreen" class="screen">
+        <div class="screen-header glass">
+            <button class="btn-icon" onclick="navigateTo('homeScreen')">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M19 12H5M12 19l-7-7 7-7"/>
+                </svg>
+            </button>
+            <div class="header-title-group">
+                <h2>Input Balancing</h2>
+                <span class="header-subtitle" id="balancingShiftInfo">Shift 3 • Auto Update</span>
+            </div>
+            <div class="user-pill">
+                <span id="balancingUser">-</span>
+            </div>
+        </div>
+
+        <div class="form-container" style="padding: 12px 16px; padding-bottom: 100px;">
+            <!-- Header Info Card -->
+            <div class="form-card glass" style="margin-bottom: 16px; padding: 16px; background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 16px;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <div class="info-field">
+                        <label>Tanggal</label>
+                        <input type="date" id="balancingDate" readonly class="auto-field" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid rgba(148, 163, 184, 0.2); background: rgba(15, 23, 42, 0.6); color: white;">
+                    </div>
+                    <div class="info-field">
+                        <label>Jam Update</label>
+                        <input type="time" id="balancingTime" readonly class="auto-field" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid rgba(148, 163, 184, 0.2); background: rgba(15, 23, 42, 0.6); color: white;">
+                    </div>
+                </div>
+                <div style="margin-top: 12px; text-align: center;">
+                    <span class="shift-badge" id="currentShiftBadge">SHIFT 3</span>
+                </div>
+            </div>
+
+            <!-- Output Power STG 17,5 -->
+            <div class="form-card glass" style="margin-bottom: 16px; padding: 16px; background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 16px;">
+                <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 16px; color: #f8fafc;">Output Power STG 17,5 MW</h3>
+                <div class="input-grid">
+                    <div class="form-field">
+                        <label style="display: block; font-size: 0.875rem; color: #94a3b8; margin-bottom: 4px;">Load (MW)</label>
+                        <input type="number" id="loadMW" step="0.01" placeholder="0.00" style="width: 100%; padding: 12px; background: rgba(15, 23, 42, 0.6); border: 2px solid rgba(148, 163, 184, 0.2); border-radius: 8px; color: white; font-size: 1rem;">
+                    </div>
+                    <div class="form-field">
+                        <label id="eksporLabel" style="display: block; font-size: 0.875rem; color: #94a3b8; margin-bottom: 4px; transition: color 0.3s;">Ekspor (MW)</label>
+                        <input type="number" id="eksporMW" step="0.001" placeholder="0.000" oninput="handleEksporInput(this)" style="width: 100%; padding: 12px; background: rgba(15, 23, 42, 0.6); border: 2px solid rgba(148, 163, 184, 0.2); border-radius: 8px; color: white; font-size: 1rem; transition: all 0.3s;">
+                        <small id="eksporHint" style="display: block; margin-top: 4px; font-size: 0.75rem; color: #94a3b8;">
+                            💡 <strong>Minus (-) = Ekspor</strong> | <strong>Plus (+) = Impor</strong>
+                        </small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Balance Power SCADA -->
+            <div class="form-card glass" style="margin-bottom: 16px; padding: 16px; background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 16px;">
+                <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 16px; color: #f8fafc;">Balance Power SCADA (MW)</h3>
+                <div class="input-grid three-col">
+                    <div class="form-field">
+                        <label style="display: block; font-size: 0.875rem; color: #94a3b8; margin-bottom: 4px;">PLN</label>
+                        <input type="number" id="plnMW" step="0.01" placeholder="0.00" style="width: 100%; padding: 12px; background: rgba(15, 23, 42, 0.6); border: 2px solid rgba(148, 163, 184, 0.2); border-radius: 8px; color: white; font-size: 0.875rem;">
+                    </div>
+                    <div class="form-field">
+                        <label style="display: block; font-size: 0.875rem; color: #94a3b8; margin-bottom: 4px;">UBB</label>
+                        <input type="number" id="ubbMW" step="0.01" placeholder="0.00" style="width: 100%; padding: 12px; background: rgba(15, 23, 42, 0.6); border: 2px solid rgba(148, 163, 184, 0.2); border-radius: 8px; color: white; font-size: 0.875rem;">
+                    </div>
+                    <div class="form-field">
+                        <label style="display: block; font-size: 0.875rem; color: #94a3b8; margin-bottom: 4px;">PIE</label>
+                        <input type="number" id="pieMW" step="0.01" placeholder="0.00" style="width: 100%; padding: 12px; background: rgba(15, 23, 42, 0.6); border: 2px solid rgba(148, 163, 184, 0.2); border-radius: 8px; color: white; font-size: 0.875rem;">
+                    </div>
+                    <div class="form-field">
+                        <label style="display: block; font-size: 0.875rem; color: #94a3b8; margin-bottom: 4px;">TG-65</label>
+                        <input type="number" id="tg65MW" step="0.01" placeholder="0.00" style="width: 100%; padding: 12px; background: rgba(15, 23, 42, 0.6); border: 2px solid rgba(148, 163, 184, 0.2); border-radius: 8px; color: white; font-size: 0.875rem;">
+                    </div>
+                    <div class="form-field">
+                        <label style="display: block; font-size: 0.875rem; color: #94a3b8; margin-bottom: 4px;">TG-66</label>
+                        <input type="number" id="tg66MW" step="0.01" placeholder="0.00" style="width: 100%; padding: 12px; background: rgba(15, 23, 42, 0.6); border: 2px solid rgba(148, 163, 184, 0.2); border-radius: 8px; color: white; font-size: 0.875rem;">
+                    </div>
+                    <div class="form-field">
+                        <label style="display: block; font-size: 0.875rem; color: #94a3b8; margin-bottom: 4px;">GTG</label>
+                        <input type="number" id="gtgMW" step="0.01" placeholder="0.00" style="width: 100%; padding: 12px; background: rgba(15, 23, 42, 0.6); border: 2px solid rgba(148, 163, 184, 0.2); border-radius: 8px; color: white; font-size: 0.875rem;">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Konsumsi Power 3B -->
+            <div class="form-card glass" style="margin-bottom: 16px; padding: 16px; background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 16px;">
+                <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 16px; color: #f8fafc;">Konsumsi Power 3B</h3>
+                
+                <div class="form-field" style="margin-bottom: 12px;">
+                    <label style="display: block; font-size: 0.875rem; color: #94a3b8; margin-bottom: 4px;">SS-6500 (TR-Main 01) (MW)</label>
+                    <input type="number" id="ss6500MW" step="0.001" placeholder="0.000" style="width: 100%; padding: 12px; background: rgba(15, 23, 42, 0.6); border: 2px solid rgba(148, 163, 184, 0.2); border-radius: 8px; color: white; font-size: 1rem;">
+                </div>
+
+                <div class="sub-section">
+                    <div class="form-field with-select" style="margin-bottom: 12px;">
+                        <label style="display: block; font-size: 0.875rem; color: #94a3b8; margin-bottom: 4px;">SS-2000 Via</label>
+                        <select id="ss2000Via" onchange="toggleSS2000Detail()" style="width: 100%; padding: 12px; background: rgba(15, 23, 42, 0.6); border: 2px solid rgba(148, 163, 184, 0.2); border-radius: 8px; color: white; font-size: 0.9375rem;">
+                            <option value="TR-Main01">TR-Main 01</option>
+                            <option value="TR-Main02">TR-Main 02</option>
+                        </select>
+                    </div>
+                    
+                    <div id="ss2000Detail" class="nested-inputs">
+                        <div class="input-grid">
+                            <div class="form-field">
+                                <label style="display: block; font-size: 0.875rem; color: #94a3b8; margin-bottom: 4px;">Active Power (MW)</label>
+                                <input type="number" id="activePowerMW" step="0.001" placeholder="0.000" style="width: 100%; padding: 12px; background: rgba(15, 23, 42, 0.6); border: 2px solid rgba(148, 163, 184, 0.2); border-radius: 8px; color: white; font-size: 0.875rem;">
+                            </div>
+                            <div class="form-field">
+                                <label style="display: block; font-size: 0.875rem; color: #94a3b8; margin-bottom: 4px;">Reactive Power (MVAR)</label>
+                                <input type="number" id="reactivePowerMVAR" step="0.001" placeholder="0.000" style="width: 100%; padding: 12px; background: rgba(15, 23, 42, 0.6); border: 2px solid rgba(148, 163, 184, 0.2); border-radius: 8px; color: white; font-size: 0.875rem;">
+                            </div>
+                            <div class="form-field">
+                                <label style="display: block; font-size: 0.875rem; color: #94a3b8; margin-bottom: 4px;">Current S (A)</label>
+                                <input type="number" id="currentS" step="0.1" placeholder="0.0" style="width: 100%; padding: 12px; background: rgba(15, 23, 42, 0.6); border: 2px solid rgba(148, 163, 184, 0.2); border-radius: 8px; color: white; font-size: 0.875rem;">
+                            </div>
+                            <div class="form-field">
+                                <label style="display: block; font-size: 0.875rem; color: #94a3b8; margin-bottom: 4px;">Voltage (V)</label>
+                                <input type="number" id="voltageV" step="1" placeholder="0" style="width: 100%; padding: 12px; background: rgba(15, 23, 42, 0.6); border: 2px solid rgba(148, 163, 184, 0.2); border-radius: 8px; color: white; font-size: 0.875rem;">
+                            </div>
+                        </div>
+                        <div class="form-field" style="margin-top: 12px;">
+                            <label style="display: block; font-size: 0.875rem; color: #94a3b8; margin-bottom: 4px;">HVS65 L02 (MW)</label>
+                            <input type="number" id="hvs65l02MW" step="0.001" placeholder="0.000" style="width: 100%; padding: 12px; background: rgba(15, 23, 42, 0.6); border: 2px solid rgba(148, 163, 184, 0.2); border-radius: 8px; color: white; font-size: 0.875rem;">
+                            <small style="color: #64748b; font-size: 0.75rem;">Current: <span id="hvs65Current">1</span> A</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-field calculated-field" style="margin-top: 16px; padding: 12px; background: rgba(16, 185, 129, 0.05); border-radius: 8px; border: 1px solid rgba(16, 185, 129, 0.2);">
+                    <label style="display: block; font-size: 0.875rem; color: #94a3b8; margin-bottom: 4px;">Total 3B (MW)</label>
+                    <input type="number" id="total3BMW" step="0.001" readonly style="width: 100%; padding: 12px; background: rgba(16, 185, 129, 0.1); border: 2px solid #10b981; color: #10b981; font-weight: 700; font-size: 1.125rem; border-radius: 8px;">
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="calculateTotal3B()" style="margin-top: 8px; width: 100%; padding: 8px; background: rgba(100, 116, 139, 0.2); border: 1px solid rgba(148, 163, 184, 0.2); color: white; border-radius: 6px; cursor: pointer;">
+                        Hitung Total 3B
+                    </button>
+                </div>
+            </div>
+
+            <!-- Produksi & Konsumsi Steam -->
+            <div class="form-card glass" style="margin-bottom: 16px; padding: 16px; background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 16px;">
+                <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 16px; color: #f8fafc;">Produksi & Konsumsi Steam</h3>
+                
+                <div class="form-field highlight-field" style="margin-bottom: 12px;">
+                    <label style="display: block; font-size: 0.875rem; color: #94a3b8; margin-bottom: 4px;">Produksi Steam SA - FQ-1105 (t/h)</label>
+                    <input type="number" id="fq1105" step="0.1" placeholder="0.0" oninput="calculateLPBalance()" style="width: 100%; padding: 12px; background: rgba(14, 165, 233, 0.1); border: 2px solid #0ea5e9; color: white; font-size: 1rem; border-radius: 8px;">
+                </div>
+
+                <div class="sub-section">
+                    <h4 style="font-size: 0.875rem; color: #94a3b8; margin-bottom: 12px; margin-top: 0;">Konsumsi Steam 3B (t/h)</h4>
+                    
+                    <div class="input-grid">
+                        <div class="form-field">
+                            <label style="display: block; font-size: 0.875rem; color: #94a3b8; margin-bottom: 4px;">STG 17,5</label>
+                            <input type="number" id="stgSteam" step="0.1" placeholder="0.0" oninput="calculateLPBalance()" style="width: 100%; padding: 12px; background: rgba(15, 23, 42, 0.6); border: 2px solid rgba(148, 163, 184, 0.2); border-radius: 8px; color: white; font-size: 0.875rem;">
+                        </div>
+                        <div class="form-field">
+                            <label style="display: block; font-size: 0.875rem; color: #94a3b8; margin-bottom: 4px;">PA2</label>
+                            <input type="number" id="pa2Steam" step="0.1" placeholder="0.0" oninput="calculateLPBalance()" style="width: 100%; padding: 12px; background: rgba(15, 23, 42, 0.6); border: 2px solid rgba(148, 163, 184, 0.2); border-radius: 8px; color: white; font-size: 0.875rem;">
+                        </div>
+                    </div>
+
+                    <div class="input-grid three-col">
+                        <div class="form-field with-select">
+                            <label style="display: block; font-size: 0.875rem; color: #94a3b8; margin-bottom: 4px;">Melter SA2</label>
+                            <select id="melterSA2" onchange="calculateLPBalance()" style="width: 100%; padding: 12px; background: rgba(15, 23, 42, 0.6); border: 2px solid rgba(148, 163, 184, 0.2); border-radius: 8px; color: white; font-size: 0.875rem;">
+                                <option value="0">0</option>
+                                <option value="5">5</option>
+                                <option value="7.5" selected>7.5</option>
+                            </select>
+                        </div>
+                        <div class="form-field with-select">
+                            <label style="display: block; font-size: 0.875rem; color: #94a3b8; margin-bottom: 4px;">Ejector</label>
+                            <select id="ejectorSteam" onchange="calculateLPBalance()" style="width: 100%; padding: 12px; background: rgba(15, 23, 42, 0.6); border: 2px solid rgba(148, 163, 184, 0.2); border-radius: 8px; color: white; font-size: 0.875rem;">
+                                <option value="0">0</option>
+                                <option value="2.5" selected>2.5</option>
+                            </select>
+                        </div>
+                        <div class="form-field with-select">
+                            <label style="display: block; font-size: 0.875rem; color: #94a3b8; margin-bottom: 4px;">Gland Seal</label>
+                            <select id="glandSealSteam" onchange="calculateLPBalance()" style="width: 100%; padding: 12px; background: rgba(15, 23, 42, 0.6); border: 2px solid rgba(148, 163, 184, 0.2); border-radius: 8px; color: white; font-size: 0.875rem;">
+                                <option value="0">0</option>
+                                <option value="1" selected>1</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="input-grid">
+                        <div class="form-field">
+                            <label style="display: block; font-size: 0.875rem; color: #94a3b8; margin-bottom: 4px;">Puri2</label>
+                            <input type="number" id="puri2Steam" step="0.1" value="1.4" oninput="calculateLPBalance()" style="width: 100%; padding: 12px; background: rgba(15, 23, 42, 0.6); border: 2px solid rgba(148, 163, 184, 0.2); border-radius: 8px; color: white; font-size: 0.875rem;">
+                        </div>
+                        <div class="form-field">
+                            <label style="display: block; font-size: 0.875rem; color: #94a3b8; margin-bottom: 4px;">Deaerator</label>
+                            <input type="number" id="deaeratorSteam" step="0.1" value="2.5" oninput="calculateLPBalance()" style="width: 100%; padding: 12px; background: rgba(15, 23, 42, 0.6); border: 2px solid rgba(148, 163, 184, 0.2); border-radius: 8px; color: white; font-size: 0.875rem;">
+                        </div>
+                        <div class="form-field">
+                            <label style="display: block; font-size: 0.875rem; color: #94a3b8; margin-bottom: 4px;">Dump Condenser</label>
+                            <input type="number" id="dumpCondenser" step="0.1" value="5.0" oninput="calculateLPBalance()" style="width: 100%; padding: 12px; background: rgba(15, 23, 42, 0.6); border: 2px solid rgba(148, 163, 184, 0.2); border-radius: 8px; color: white; font-size: 0.875rem;">
+                        </div>
+                        <div class="form-field">
+                            <label style="display: block; font-size: 0.875rem; color: #94a3b8; margin-bottom: 4px;">PCV-6105</label>
+                            <input type="number" id="pcv6105" step="0.1" value="0.0" oninput="calculateLPBalance()" style="width: 100%; padding: 12px; background: rgba(15, 23, 42, 0.6); border: 2px solid rgba(148, 163, 184, 0.2); border-radius: 8px; color: white; font-size: 0.875rem;">
+                        </div>
+                    </div>
+
+                    <div class="calculation-result">
+                        <span style="font-size: 0.875rem; color: #94a3b8;">Total Konsumsi:</span>
+                        <span id="totalKonsumsiSteam" style="font-weight: 700; color: #38bdf8; font-size: 1rem;">0.0 t/h</span>
+                    </div>
+                </div>
+
+                <div class="form-field calculated-field highlight-impor" id="lpBalanceField" style="margin-top: 16px; padding: 12px; border-radius: 8px; border: 1px solid rgba(16, 185, 129, 0.2); background: rgba(16, 185, 129, 0.05);">
+                    <label id="lpBalanceLabel" style="display: block; font-size: 0.875rem; color: #94a3b8; margin-bottom: 4px;">LPS Ekspor ke SU 3A (t/h)</label>
+                    <input type="number" id="lpBalanceValue" step="0.1" readonly style="width: 100%; padding: 12px; background: rgba(16, 185, 129, 0.1); border: 2px solid #10b981; color: #10b981; font-weight: 700; font-size: 1.125rem; border-radius: 8px;">
+                    <small id="lpBalanceStatus" style="display: block; margin-top: 4px; color: #10b981; font-size: 0.75rem;">Posisi: Ekspor ke 3A</small>
+                </div>
+            </div>
+
+            <!-- Monitoring -->
+            <div class="form-card glass" style="margin-bottom: 16px; padding: 16px; background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 16px;">
+                <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 16px; color: #f8fafc;">Monitoring</h3>
+                <div class="monitoring-grid">
+                    <div class="monitoring-item">
+                        <label>Steam Extraction PI-6122 (kg/cm²)</label>
+                        <input type="number" id="pi6122" step="0.01" placeholder="0.00" style="width: 100%; padding: 10px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 6px; color: white;">
+                        <label style="margin-top: 4px; font-size: 0.75rem;">TI-6112 (°C)</label>
+                        <input type="number" id="ti6112" step="0.1" placeholder="0.0" style="width: 100%; padding: 10px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 6px; color: white;">
+                    </div>
+                    
+                    <div class="monitoring-item">
+                        <label>Temp. Cooling Air Inlet TI-6146/47 (°C)</label>
+                        <input type="number" id="ti6146" step="0.01" placeholder="0.00" style="width: 100%; padding: 10px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 6px; color: white;">
+                    </div>
+                    
+                    <div class="monitoring-item">
+                        <label>Temp. Lube Oil TI-6126 (°C)</label>
+                        <input type="number" id="ti6126" step="0.01" placeholder="0.00" style="width: 100%; padding: 10px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 6px; color: white;">
+                    </div>
+                    
+                    <div class="monitoring-item with-limit">
+                        <label>Axial Displacement (mm)</label>
+                        <div class="limit-input">
+                            <input type="number" id="axialDisplacement" step="0.01" placeholder="0.00" style="padding: 10px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 6px; color: white;">
+                            <span class="limit-badge">High: 0.6</span>
+                        </div>
+                    </div>
+                    
+                    <div class="monitoring-item with-limit">
+                        <label>Vibrasi VI-6102 (μm)</label>
+                        <div class="limit-input">
+                            <input type="number" id="vi6102" step="0.01" placeholder="0.00" style="padding: 10px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 6px; color: white;">
+                            <span class="limit-badge">High: 85</span>
+                        </div>
+                    </div>
+                    
+                    <div class="monitoring-item with-limit">
+                        <label>Temp. Journal Bearing TE-6134 (°C)</label>
+                        <div class="limit-input">
+                            <input type="number" id="te6134" step="0.1" placeholder="0.0" style="padding: 10px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 6px; color: white;">
+                            <span class="limit-badge">High: 115</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="input-grid two-col" style="margin-top: 16px;">
+                    <div class="form-field">
+                        <label>CT SU - Fan</label>
+                        <input type="number" id="ctSuFan" value="4" min="0" max="10" style="width: 100%; padding: 10px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 6px; color: white;">
+                    </div>
+                    <div class="form-field">
+                        <label>CT SU - Pompa</label>
+                        <input type="number" id="ctSuPompa" value="2" min="0" max="10" style="width: 100%; padding: 10px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 6px; color: white;">
+                    </div>
+                    <div class="form-field">
+                        <label>CT SA - Fan</label>
+                        <input type="number" id="ctSaFan" value="3" min="0" max="10" style="width: 100%; padding: 10px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 6px; color: white;">
+                    </div>
+                    <div class="form-field">
+                        <label>CT SA - Pompa</label>
+                        <input type="number" id="ctSaPompa" value="2" min="0" max="10" style="width: 100%; padding: 10px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 6px; color: white;">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Kegiatan Shift -->
+            <div class="form-card glass" style="margin-bottom: 24px; padding: 16px; background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 16px;">
+                <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 12px; color: #f8fafc;">Kegiatan Shift <span id="kegiatanShiftNum">3</span></h3>
+                <div class="form-field">
+                    <textarea id="kegiatanShift" rows="4" placeholder="Masukkan kegiatan shift..." style="width: 100%; padding: 12px; background: rgba(15, 23, 42, 0.6); border: 2px solid rgba(148, 163, 184, 0.2); border-radius: 8px; color: white; resize: vertical; font-family: inherit;"></textarea>
+                </div>
+            </div>
+
+            <button class="btn btn-submit btn-full" onclick="submitBalancingData()" style="width: 100%; padding: 16px; background: #f59e0b; color: white; border: none; border-radius: 12px; font-weight: 600; cursor: pointer; margin-bottom: 32px; font-size: 1rem;">
+                <span>💾 Simpan Data Balancing</span>
+            </button>
         </div>
     </div>
 
