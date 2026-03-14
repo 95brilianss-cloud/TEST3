@@ -1501,3 +1501,70 @@ html {
 .calculated:focus {
     animation: pulseSuccess 2s infinite;
 }
+
+/* ============================================
+   PWA STANDALONE MODE - NATIVE APP EXPERIENCE
+   ============================================ */
+
+/* Untuk mode standalone (terinstall sebagai app) */
+@media all and (display-mode: standalone) {
+    /* Status bar area untuk iPhone notch */
+    .screen-header {
+        padding-top: calc(var(--md) + max(12px, env(safe-area-inset-top)));
+    }
+    
+    #loginScreen .login-container {
+        padding-top: calc(var(--xl) + max(20px, env(safe-area-inset-top)));
+    }
+    
+    /* Sembunyikan tombol install jika sudah terinstall */
+    #installBanner {
+        display: none !important;
+    }
+    
+    /* Tambahan padding bottom untuk gesture navigation bar */
+    .form-container {
+        padding-bottom: calc(var(--xl) + max(20px, env(safe-area-inset-bottom)));
+    }
+    
+    .action-bar {
+        padding-bottom: max(var(--safe-bottom), 20px);
+    }
+}
+
+/* Animation untuk install banner */
+@keyframes slideUp {
+    from {
+        transform: translateY(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+/* Hide scrollbar tapi tetap bisa scroll */
+* {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+/* iOS specific - prevent callout dan selection yang tidak diinginkan */
+* {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+/* Kecuali untuk input dan textarea */
+input, textarea, select {
+    -webkit-user-select: auto;
+    user-select: auto;
+}
+
+/* Smooth scroll behavior */
+html {
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+}
