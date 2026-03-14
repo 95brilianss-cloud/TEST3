@@ -1,7 +1,7 @@
 // ============================================
 // TURBINE LOGSHEET PRO - VERSION CONTROL
 // ============================================
-const APP_VERSION = '1.2.2'; // Updated with Balancing Draft Feature
+const APP_VERSION = '1.2.3'; // Updated with Balancing Draft Feature
 
 // ============================================
 // CONFIGURATION & CONSTANTS
@@ -1858,118 +1858,253 @@ async function submitBalancingData() {
 }
 
 // ============================================
-// PWA INSTALLATION HANDLER
+// PWA INSTALLATION HANDLER - CUSTOM UI
 // ============================================
 
-let deferredPrompt;
-let installButton = null;
+let deferredPrompt = null;
+let installBannerShown = false;
 
+// Tangkap event install browser dan SEMBUNYIKAN default prompt
 window.addEventListener('beforeinstallprompt', (e) => {
-    // Prevent Chrome 67 and earlier from automatically showing the prompt
+    // Cegah browser menampilkan popup default "Tambahkan ke Beranda"
     e.preventDefault();
-    // Stash the event so it can be triggered later
+    
+    // Simpan event untuk nanti
     deferredPrompt = e;
     
-    // Show install button atau UI
-    showInstallPromotion();
+    // Tampilkan custom UI setelah beberapa detik (jika belum install)
+    if (!isAppInstalled() && !installBannerShown) {
+        setTimeout(() => {
+            showCustomInstallBanner();
+        }, 3000); // Muncul setelah 3 detik
+    }
     
-    console.log('PWA install available');
+    console.log('PWA install available - default prompt prevented');
 });
 
+// Saat app sudah terinstall
 window.addEventListener('appinstalled', () => {
-    // Hide the app-provided install promotion
-    hideInstallPromotion();
-    // Clear the deferredPrompt so it can be garbage collected
+    hideCustomInstallBanner();
     deferredPrompt = null;
-    // Optionally, send analytics event to indicate successful install
-    console.log('PWA was installed');
-    showCustomAlert('Aplikasi berhasil diinstall!', 'success');
+    installBannerShown = true;
+    
+    // Tampilkan notifikasi sukses (tanpa alert browser)
+    showToast('✓ Aplikasi berhasil diinstall!', 'success');
+    console.log('PWA installed successfully');
 });
 
-function showInstallPromotion() {
-    // Bisa tambahkan banner install di UI
-    const installBanner = document.createElement('div');
-    installBanner.id = 'installBanner';
-    installBanner.innerHTML = `
-        <div style="position: fixed; bottom: 80px; left: 16px; right: 16px; 
-                    background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); 
-                    color: white; padding: 16px; border-radius: 12px; 
-                    box-shadow: 0 4px 20px rgba(0,0,0,0.3); z-index: 9999;
-                    display: flex; align-items: center; justify-content: space-between;
-                    animation: slideUp 0.3s ease;">
-            <div style="display: flex; align-items: center; gap: 12px;">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                    <polyline points="7 10 12 15 17 10"/>
-                    <line x1="12" y1="15" x2="12" y2="3"/>
-                </svg>
-                <div>
-                    <div style="font-weight: 600;">Install Aplikasi</div>
-                    <div style="font-size: 0.75rem; opacity: 0.9;">Akses lebih cepat tanpa browser</div>
-                </div>
+// Custom Install Banner (Muncul di dalam app, bukan popup browser)
+function showCustomInstallBanner() {
+    if (document.getElementById('customInstallBanner')) return;
+    
+    const banner = document.createElement('div');
+    banner.id = 'customInstallBanner';
+    banner.innerHTML = `
+        <div style="
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            border-radius: 20px;
+            padding: 32px 24px;
+            width: 90%;
+            max-width: 340px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+            z-index: 10002;
+            text-align: center;
+            animation: scaleIn 0.3s ease;
+        ">
+            <!-- Icon App -->
+            <div style="
+                width: 80px;
+                height: 80px;
+                margin: 0 auto 20px;
+                background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+                border-radius: 20px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 40px;
+                box-shadow: 0 10px 25px rgba(245, 158, 11, 0.3);
+            ">
+                ⚡
             </div>
-            <button onclick="installPWA()" style="background: white; color: #1d4ed8; 
-                                                   border: none; padding: 8px 16px; 
-                                                   border-radius: 8px; font-weight: 600; 
-                                                   cursor: pointer; white-space: nowrap;">
-                Install
-            </button>
-            <button onclick="hideInstallPromotion()" style="background: transparent; 
-                                                            border: none; color: white; 
-                                                            margin-left: 8px; cursor: pointer;">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M18 6L6 18M6 6l12 12"/>
-                </svg>
-            </button>
+            
+            <h3 style="
+                color: #f8fafc;
+                font-size: 1.25rem;
+                font-weight: 700;
+                margin-bottom: 8px;
+            ">
+                Install Aplikasi
+            </h3>
+            
+            <p style="
+                color: #94a3b8;
+                font-size: 0.875rem;
+                margin-bottom: 24px;
+                line-height: 1.5;
+            ">
+                Tambahkan Turbine Log ke layar utama untuk akses lebih cepat dan pengalaman seperti aplikasi native.
+            </p>
+            
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+                <button onclick="installPWA()" style="
+                    width: 100%;
+                    padding: 14px 24px;
+                    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+                    color: white;
+                    border: none;
+                    border-radius: 12px;
+                    font-size: 1rem;
+                    font-weight: 600;
+                    cursor: pointer;
+                    transition: transform 0.2s;
+                " onmouseover="this.style.transform='scale(1.02)'" onmouseout="this.style.transform='scale(1)'">
+                    Install Sekarang
+                </button>
+                
+                <button onclick="hideCustomInstallBanner()" style="
+                    width: 100%;
+                    padding: 12px 24px;
+                    background: transparent;
+                    color: #64748b;
+                    border: 1px solid rgba(148, 163, 184, 0.2);
+                    border-radius: 12px;
+                    font-size: 0.9375rem;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                ">
+                    Nanti Saja
+                </button>
+            </div>
+            
+            <!-- Fitur kecil -->
+            <div style="
+                margin-top: 20px;
+                padding-top: 20px;
+                border-top: 1px solid rgba(148, 163, 184, 0.1);
+                display: flex;
+                justify-content: center;
+                gap: 20px;
+                font-size: 0.75rem;
+                color: #64748b;
+            ">
+                <span style="display: flex; align-items: center; gap: 4px;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                    </svg>
+                    Cepat
+                </span>
+                <span style="display: flex; align-items: center; gap: 4px;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                    </svg>
+                    Aman
+                </span>
+                <span style="display: flex; align-items: center; gap: 4px;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2v20M2 12h20"/>
+                    </svg>
+                    Offline
+                </span>
+            </div>
         </div>
+        
+        <!-- Overlay gelap -->
+        <div style="
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(4px);
+            z-index: 10001;
+        " onclick="hideCustomInstallBanner()"></div>
     `;
-    document.body.appendChild(installBanner);
+    
+    document.body.appendChild(banner);
+    installBannerShown = true;
 }
 
-function hideInstallPromotion() {
-    const banner = document.getElementById('installBanner');
-    if (banner) banner.remove();
+function hideCustomInstallBanner() {
+    const banner = document.getElementById('customInstallBanner');
+    if (banner) {
+        banner.style.animation = 'fadeOut 0.2s ease';
+        setTimeout(() => banner.remove(), 200);
+    }
 }
 
 async function installPWA() {
     if (!deferredPrompt) {
-        // Jika tidak ada prompt (sudah terinstall atau tidak support)
-        showCustomAlert('Aplikasi sudah terinstall atau browser tidak mendukung', 'info');
+        showToast('Aplikasi sudah terinstall atau browser tidak mendukung', 'info');
         return;
     }
     
-    // Show the install prompt
+    // Tampilkan browser prompt (tapi sekarang user sudah siap)
     deferredPrompt.prompt();
     
-    // Wait for the user to respond to the prompt
     const { outcome } = await deferredPrompt.userChoice;
     
     if (outcome === 'accepted') {
-        console.log('User accepted the install prompt');
-        hideInstallPromotion();
+        console.log('User installed PWA');
+        hideCustomInstallBanner();
+        showToast('✓ Menginstall aplikasi...', 'success');
     } else {
-        console.log('User dismissed the install prompt');
+        console.log('User dismissed install');
+        hideCustomInstallBanner();
     }
     
-    // We've used the prompt, and can't use it again, throw it away
     deferredPrompt = null;
 }
 
-// Check if app is installed (display-mode: standalone)
+// Cek status install
 function isAppInstalled() {
     return window.matchMedia('(display-mode: standalone)').matches || 
-           window.navigator.standalone === true;
+           window.navigator.standalone === true ||
+           document.referrer.includes('android-app://');
+}
+// TAMBAHKAN FUNGSI INI DI SINI
+function showInstallButtonInMenu() {
+    if (!isAppInstalled() && deferredPrompt) {
+        // Tampilkan tombol install di menu
+        const installBtn = document.getElementById('menuInstallBtn');
+        if (installBtn) {
+            installBtn.style.display = 'flex';
+            console.log('Install button shown in menu');
+        }
+    } else {
+        // Sembunyikan jika sudah install
+        const installBtn = document.getElementById('menuInstallBtn');
+        if (installBtn) installBtn.style.display = 'none';
+    }
 }
 
-// Check on load
+// Cek saat load
 window.addEventListener('load', () => {
     if (isAppInstalled()) {
-        console.log('App is running in standalone mode');
-        // Hide any install buttons if shown
-        hideInstallPromotion();
+        console.log('App running in standalone mode');
+        hideCustomInstallBanner();
+    } else {
+        // Tunggu sebentar lalu cek apakah bisa install
+        setTimeout(showInstallButtonInMenu, 2000);
     }
 });
 
+// Tambahan animasi CSS via JS
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes scaleIn {
+        from { transform: translate(-50%, -50%) scale(0.9); opacity: 0; }
+        to { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+    }
+    @keyframes fadeOut {
+        from { opacity: 1; }
+        to { opacity: 0; }
+    }
+`;
+document.head.appendChild(style);
 // ============================================
 // KEYBOARD EVENTS
 // ============================================
