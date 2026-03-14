@@ -1,10 +1,10 @@
 // ============================================
 // TURBINE LOGSHEET PRO - VERSION CONTROL
 // ============================================
-const APP_VERSION = '1.2.0'; // Updated with Balancing feature
+const APP_VERSION = '1.2.1'; // Updated with Balancing Draft Feature
 
 // ============================================
-// AUTHENTICATION SYSTEM
+// CONFIGURATION & CONSTANTS
 // ============================================
 const AUTH_CONFIG = {
     SESSION_KEY: 'turbine_session',
@@ -13,243 +13,34 @@ const AUTH_CONFIG = {
     REMEMBER_ME_DURATION: 30 * 24 * 60 * 60 * 1000 // 30 days
 };
 
-let currentUser = null;
-let isAuthenticated = false;
+const DRAFT_KEYS = {
+    LOGSHEET: 'draft_turbine',
+    LOGSHEET_BACKUP: 'draft_turbine_backup',
+    BALANCING: 'balancing_draft',
+    TPM_OFFLINE: 'tpm_offline',
+    LOGSHEET_OFFLINE: 'offline_logsheets',
+    BALANCING_OFFLINE: 'balancing_offline',
+    TPM_HISTORY: 'tpm_history',
+    BALANCING_HISTORY: 'balancing_history'
+};
 
-// ============================================
-// SERVICE WORKER REGISTRATION
-// ============================================
-if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-        navigator.serviceWorker.register(`./sw.js?v=${APP_VERSION}`)
-            .then(registration => {
-                console.log('SW registered:', registration);
-                registration.addEventListener('updatefound', () => {
-                    const newWorker = registration.installing;
-                    newWorker.addEventListener('statechange', () => {
-                        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                            showUpdateAlert();
-                        }
-                    });
-                });
-            })
-            .catch(err => console.log('SW registration failed:', err));
-            
-        navigator.serviceWorker.addEventListener('message', event => {
-            if (event.data?.type === 'VERSION_CHECK' && event.data.version !== APP_VERSION) {
-                showUpdateAlert();
-            }
-        });
-    });
-}
+// List semua field ID di form balancing untuk draft
+const BALANCING_FIELDS = [
+    'balancingDate', 'balancingTime',
+    'loadMW', 'eksporMW',
+    'plnMW', 'ubbMW', 'pieMW', 'tg65MW', 'tg66MW', 'gtgMW',
+    'ss6500MW', 'ss2000Via', 'activePowerMW', 'reactivePowerMVAR', 
+    'currentS', 'voltageV', 'hvs65l02MW', 'hvs65l02Current', 'total3BMW',
+    'fq1105',
+    'stgSteam', 'pa2Steam', 'puri2Steam', 'melterSA2', 
+    'ejectorSteam', 'glandSealSteam', 'deaeratorSteam', 
+    'dumpCondenser', 'pcv6105',
+    'pi6122', 'ti6112', 'ti6146', 'ti6126', 
+    'axialDisplacement', 'vi6102', 'te6134',
+    'ctSuFan', 'ctSuPompa', 'ctSaFan', 'ctSaPompa',
+    'kegiatanShift'
+];
 
-// ============================================
-// AUTHENTICATION FUNCTIONS
-// ============================================
-function initAuth() {
-    const session = getSession();
-    
-    if (session && isSessionValid(session)) {
-        currentUser = session.user;
-        isAuthenticated = true;
-        updateUIForAuthenticatedUser();
-        
-        const loginScreen = document.getElementById('loginScreen');
-        if (loginScreen && loginScreen.classList.contains('active')) {
-            navigateTo('homeScreen');
-        }
-    } else {
-        clearSession();
-        showLoginScreen();
-    }
-}
-
-function getSession() {
-    try {
-        const sessionData = localStorage.getItem(AUTH_CONFIG.SESSION_KEY);
-        return sessionData ? JSON.parse(sessionData) : null;
-    } catch (e) {
-        console.error('Error reading session:', e);
-        return null;
-    }
-}
-
-function saveSession(user, rememberMe = false) {
-    const duration = rememberMe ? AUTH_CONFIG.REMEMBER_ME_DURATION : AUTH_CONFIG.SESSION_DURATION;
-    const session = {
-        user: user,
-        loginTime: Date.now(),
-        expiresAt: Date.now() + duration,
-        rememberMe: rememberMe
-    };
-    
-    try {
-        localStorage.setItem(AUTH_CONFIG.SESSION_KEY, JSON.stringify(session));
-        localStorage.setItem(AUTH_CONFIG.USER_KEY, JSON.stringify(user));
-    } catch (e) {
-        console.error('Error saving session:', e);
-    }
-}
-
-function isSessionValid(session) {
-    if (!session || !session.expiresAt) return false;
-    return Date.now() < session.expiresAt;
-}
-
-function clearSession() {
-    localStorage.removeItem(AUTH_CONFIG.SESSION_KEY);
-    localStorage.removeItem(AUTH_CONFIG.USER_KEY);
-    currentUser = null;
-    isAuthenticated = false;
-}
-
-function loginOperator() {
-    const nameInput = document.getElementById('operatorName');
-    const errorMsg = document.getElementById('loginError');
-    
-    if (!nameInput) {
-        console.error('Login input not found');
-        return;
-    }
-    
-    const operatorName = nameInput.value.trim();
-    
-    if (!operatorName) {
-        if (errorMsg) {
-            errorMsg.textContent = 'Nama operator wajib diisi!';
-            errorMsg.style.display = 'block';
-        }
-        nameInput.focus();
-        nameInput.classList.add('error');
-        return;
-    }
-    
-    if (operatorName.length < 3) {
-        if (errorMsg) {
-            errorMsg.textContent = 'Nama minimal 3 karakter!';
-            errorMsg.style.display = 'block';
-        }
-        nameInput.focus();
-        nameInput.classList.add('error');
-        return;
-    }
-    
-    if (errorMsg) errorMsg.style.display = 'none';
-    nameInput.classList.remove('error');
-    
-    const user = {
-        name: operatorName,
-        id: 'OP-' + Date.now().toString(36).toUpperCase(),
-        loginTime: new Date().toISOString(),
-        role: 'operator'
-    };
-    
-    saveSession(user, false);
-    currentUser = user;
-    isAuthenticated = true;
-    
-    showCustomAlert(`Selamat datang, ${operatorName}!`, 'success');
-    
-    setTimeout(() => {
-        updateUIForAuthenticatedUser();
-        navigateTo('homeScreen');
-        loadUserStats();
-    }, 800);
-}
-
-function logoutOperator() {
-    if (confirm('Apakah Anda yakin ingin keluar?')) {
-        if (Object.keys(currentInput).length > 0) {
-            localStorage.setItem('draft_turbine_backup', JSON.stringify(currentInput));
-        }
-        
-        clearSession();
-        
-        const nameInput = document.getElementById('operatorName');
-        if (nameInput) nameInput.value = '';
-        
-        showLoginScreen();
-        showCustomAlert('Anda telah keluar dari sistem.', 'success');
-    }
-}
-
-function showLoginScreen() {
-    document.querySelectorAll('.screen').forEach(s => {
-        s.classList.remove('active');
-    });
-    
-    const loginScreen = document.getElementById('loginScreen');
-    if (loginScreen) {
-        loginScreen.classList.add('active');
-    }
-    
-    const savedUser = localStorage.getItem(AUTH_CONFIG.USER_KEY);
-    if (savedUser) {
-        try {
-            const user = JSON.parse(savedUser);
-            const nameInput = document.getElementById('operatorName');
-            if (nameInput && user.name) {
-                nameInput.value = user.name;
-            }
-        } catch (e) {
-            console.error('Error parsing saved user:', e);
-        }
-    }
-}
-
-function updateUIForAuthenticatedUser() {
-    if (!currentUser) return;
-    
-    const userElements = [
-        'displayUserName',
-        'tpmHeaderUser',
-        'tpmInputUser',
-        'areaListUser',
-        'paramUser',
-        'balancingUser'
-    ];
-    
-    userElements.forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.textContent = currentUser.name;
-    });
-}
-
-function requireAuth() {
-    if (!isAuthenticated || !isSessionValid(getSession())) {
-        clearSession();
-        showLoginScreen();
-        showCustomAlert('Sesi Anda telah berakhir. Silakan login kembali.', 'error');
-        return false;
-    }
-    return true;
-}
-
-function loadUserStats() {
-    const totalAreas = Object.keys(AREAS).length;
-    let completedAreas = 0;
-    
-    Object.entries(AREAS).forEach(([areaName, params]) => {
-        const filled = currentInput[areaName] ? Object.keys(currentInput[areaName]).length : 0;
-        if (filled === params.length && filled > 0) completedAreas++;
-    });
-    
-    const statProgress = document.getElementById('statProgress');
-    const statAreas = document.getElementById('statAreas');
-    
-    if (statProgress) {
-        const percent = Math.round((completedAreas / totalAreas) * 100);
-        statProgress.textContent = `${percent}%`;
-    }
-    
-    if (statAreas) {
-        statAreas.textContent = `${completedAreas}/${totalAreas}`;
-    }
-}
-
-// ============================================
-// CONFIGURATION
-// ============================================
 const GAS_URL = "https://script.google.com/macros/s/AKfycbymea30xeBLto1sb9BSIr_vRAnrVWwxjnuEetXV8rI9geEaYobhGTXO-jg6hcyPM1Gw/exec";
 
 const INPUT_TYPES = {
@@ -396,14 +187,19 @@ const AREAS = {
     ]
 };
 
-// State Variables
+// ============================================
+// STATE VARIABLES
+// ============================================
 let lastData = {};
-let currentInput = JSON.parse(localStorage.getItem('draft_turbine')) || {};
+let currentInput = JSON.parse(localStorage.getItem(DRAFT_KEYS.LOGSHEET)) || {};
 let activeArea = "";
 let activeIdx = 0;
 let totalParams = 0;
 let currentInputType = 'text';
 let autoCloseTimer = null;
+
+let currentUser = null;
+let isAuthenticated = false;
 
 // TPM State
 let activeTPMArea = '';
@@ -412,98 +208,237 @@ let currentTPMStatus = '';
 
 // Balancing State
 let currentShift = 3;
+let balancingAutoSaveInterval = null;
 
 // ============================================
-// FORMAT WHATSAPP MESSAGE
+// SERVICE WORKER REGISTRATION
 // ============================================
-
-function formatWhatsAppMessage(data) {
-    // Format angka Indonesia tanpa trailing zeros (12.00 -> 12)
-    const formatNum = (num, maxDecimals = 2) => {
-        if (num === undefined || num === null || num === '' || isNaN(num)) return '-';
-        const parsed = parseFloat(num);
-        if (parsed === 0) return '0';
-        
-        return parsed.toLocaleString('id-ID', {
-            minimumFractionDigits: 0,
-            maximumFractionDigits: maxDecimals
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register(`./sw.js?v=${APP_VERSION}`)
+            .then(registration => {
+                console.log('SW registered:', registration);
+                registration.addEventListener('updatefound', () => {
+                    const newWorker = registration.installing;
+                    newWorker.addEventListener('statechange', () => {
+                        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                            showUpdateAlert();
+                        }
+                    });
+                });
+            })
+            .catch(err => console.log('SW registration failed:', err));
+            
+        navigator.serviceWorker.addEventListener('message', event => {
+            if (event.data?.type === 'VERSION_CHECK' && event.data.version !== APP_VERSION) {
+                showUpdateAlert();
+            }
         });
+    });
+}
+
+// ============================================
+// AUTHENTICATION FUNCTIONS
+// ============================================
+function initAuth() {
+    const session = getSession();
+    
+    if (session && isSessionValid(session)) {
+        currentUser = session.user;
+        isAuthenticated = true;
+        updateUIForAuthenticatedUser();
+        
+        const loginScreen = document.getElementById('loginScreen');
+        if (loginScreen && loginScreen.classList.contains('active')) {
+            navigateTo('homeScreen');
+        }
+    } else {
+        clearSession();
+        showLoginScreen();
+    }
+}
+
+function getSession() {
+    try {
+        const sessionData = localStorage.getItem(AUTH_CONFIG.SESSION_KEY);
+        return sessionData ? JSON.parse(sessionData) : null;
+    } catch (e) {
+        console.error('Error reading session:', e);
+        return null;
+    }
+}
+
+function saveSession(user, rememberMe = false) {
+    const duration = rememberMe ? AUTH_CONFIG.REMEMBER_ME_DURATION : AUTH_CONFIG.SESSION_DURATION;
+    const session = {
+        user: user,
+        loginTime: Date.now(),
+        expiresAt: Date.now() + duration,
+        rememberMe: rememberMe
     };
     
-    const formatInt = (num) => {
-        if (num === undefined || num === null || num === '' || isNaN(num)) return '-';
-        return parseInt(num).toLocaleString('id-ID');
+    try {
+        localStorage.setItem(AUTH_CONFIG.SESSION_KEY, JSON.stringify(session));
+        localStorage.setItem(AUTH_CONFIG.USER_KEY, JSON.stringify(user));
+    } catch (e) {
+        console.error('Error saving session:', e);
+    }
+}
+
+function isSessionValid(session) {
+    if (!session || !session.expiresAt) return false;
+    return Date.now() < session.expiresAt;
+}
+
+function clearSession() {
+    localStorage.removeItem(AUTH_CONFIG.SESSION_KEY);
+    localStorage.removeItem(AUTH_CONFIG.USER_KEY);
+    currentUser = null;
+    isAuthenticated = false;
+}
+
+function loginOperator() {
+    const nameInput = document.getElementById('operatorName');
+    const errorMsg = document.getElementById('loginError');
+    
+    if (!nameInput) {
+        console.error('Login input not found');
+        return;
+    }
+    
+    const operatorName = nameInput.value.trim();
+    
+    if (!operatorName) {
+        if (errorMsg) {
+            errorMsg.textContent = 'Nama operator wajib diisi!';
+            errorMsg.style.display = 'block';
+        }
+        nameInput.focus();
+        nameInput.classList.add('error');
+        return;
+    }
+    
+    if (operatorName.length < 3) {
+        if (errorMsg) {
+            errorMsg.textContent = 'Nama minimal 3 karakter!';
+            errorMsg.style.display = 'block';
+        }
+        nameInput.focus();
+        nameInput.classList.add('error');
+        return;
+    }
+    
+    if (errorMsg) errorMsg.style.display = 'none';
+    nameInput.classList.remove('error');
+    
+    const user = {
+        name: operatorName,
+        id: 'OP-' + Date.now().toString(36).toUpperCase(),
+        loginTime: new Date().toISOString(),
+        role: 'operator'
     };
     
-    // Format tanggal
-    const tglParts = data.Tanggal.split('-');
-    const bulanIndo = {
-        '01': 'Januari', '02': 'Februari', '03': 'Maret', '04': 'April',
-        '05': 'Mei', '06': 'Juni', '07': 'Juli', '08': 'Agustus',
-        '09': 'September', '10': 'Oktober', '11': 'November', '12': 'Desember'
-    };
-    const tglIndo = `${tglParts[2]} ${bulanIndo[tglParts[1]]} ${tglParts[0]}`;
+    saveSession(user, false);
+    currentUser = user;
+    isAuthenticated = true;
     
-    let message = `*Update STG 17,5 MW*\n`;
-    message += `Tgl ${tglIndo}\n`;
-    message += `Jam ${data.Jam}\n\n`;
+    showCustomAlert(`Selamat datang, ${operatorName}!`, 'success');
     
-    message += `*Output Power STG 17,5*\n`;
-    message += `⠂ Load = ${formatNum(data.Load_MW)} MW\n`;
-    message += `⠂ ${data.Ekspor_Impor_Status} = ${formatNum(Math.abs(data.Ekspor_Impor_MW), 3)} MW\n\n`;
+    setTimeout(() => {
+        updateUIForAuthenticatedUser();
+        navigateTo('homeScreen');
+        loadUserStats();
+    }, 800);
+}
+
+function logoutOperator() {
+    if (confirm('Apakah Anda yakin ingin keluar?')) {
+        if (Object.keys(currentInput).length > 0) {
+            localStorage.setItem(DRAFT_KEYS.LOGSHEET_BACKUP, JSON.stringify(currentInput));
+        }
+        
+        clearSession();
+        
+        const nameInput = document.getElementById('operatorName');
+        if (nameInput) nameInput.value = '';
+        
+        showLoginScreen();
+        showCustomAlert('Anda telah keluar dari sistem.', 'success');
+    }
+}
+
+function showLoginScreen() {
+    document.querySelectorAll('.screen').forEach(s => {
+        s.classList.remove('active');
+    });
     
-    message += `*Balance Power SCADA*\n`;
-    message += `⠂ PLN = ${formatNum(data.PLN_MW)}MW\n`;
-    message += `⠂ UBB = ${formatNum(data.UBB_MW)}MW\n`;
-    message += `⠂ PIE = ${formatNum(data.PIE_MW)} MW\n`;
-    message += `⠂ TG-65 = ${formatNum(data.TG65_MW)} MW\n`;
-    message += `⠂ TG-66 = ${formatNum(data.TG66_MW)} MW\n`;
-    message += `⠂ GTG = ${formatNum(data.GTG_MW)} MW\n\n`;
+    const loginScreen = document.getElementById('loginScreen');
+    if (loginScreen) {
+        loginScreen.classList.add('active');
+    }
     
-    message += `*Konsumsi Power 3B*\n`;
-    message += `● SS-6500 (TR-Main 01) = ${formatNum(data.SS6500_MW, 3)} MW\n`;
-    message += `● SS-2000 *Via ${data.SS2000_Via}*\n`;
-    message += `  ⠂ Active power = ${formatNum(data.Active_Power_MW, 3)} MW\n`;
-    message += `  ⠂ Reactive power = ${formatNum(data.Reactive_Power_MVAR, 3)} MVAR\n`;
-    message += `  ⠂ Current S = ${formatNum(data.Current_S_A, 1)} A\n`;
-    message += `  ⠂ Voltage = ${formatInt(data.Voltage_V)} V\n`;
-    message += `  ⠂ (HVS65 L02) = ${formatNum(data.HVS65_L02_MW, 3)} MW (${formatInt(data.HVS65_L02_Current_A)} A)\n`;
-    message += `● Total 3B = ${formatNum(data.Total_3B_MW, 3)}MW\n\n`;
+    const savedUser = localStorage.getItem(AUTH_CONFIG.USER_KEY);
+    if (savedUser) {
+        try {
+            const user = JSON.parse(savedUser);
+            const nameInput = document.getElementById('operatorName');
+            if (nameInput && user.name) {
+                nameInput.value = user.name;
+            }
+        } catch (e) {
+            console.error('Error parsing saved user:', e);
+        }
+    }
+}
+
+function updateUIForAuthenticatedUser() {
+    if (!currentUser) return;
     
-    message += `*Produksi Steam SA*\n`;
-    message += `⠂ FQ-1105 = ${formatNum(data['Produksi_Steam_SA_t/h'], 1)} t/h\n\n`;
+    const userElements = [
+        'displayUserName',
+        'tpmHeaderUser',
+        'tpmInputUser',
+        'areaListUser',
+        'paramUser',
+        'balancingUser'
+    ];
     
-    message += `*Konsumsi Steam 3B*\n`;
-    // PERBAIKAN: Gunakan exact field name dengan bracket notation
-    message += `⠂ STG 17,5 = ${formatNum(data['STG_Steam_t/h'], 1)} t/h\n`;
-    message += `⠂ PA2 = ${formatNum(data['PA2_Steam_t/h'], 1)} t/h\n`;
-    message += `⠂ Puri2 = ${formatNum(data['Puri2_Steam_t/h'], 1)} t/h\n`;
-    message += `⠂ Melter SA2 = ${formatNum(data['Melter_SA2_t/h'], 1)} t/h\n`;
-    message += `⠂ Ejector = ${formatNum(data['Ejector_t/h'], 1)} t/h\n`;
-    message += `⠂ Gland Seal = ${formatNum(data['Gland_Seal_t/h'], 1)} t/h\n`;
-    message += `⠂ Deaerator = ${formatNum(data['Deaerator_t/h'], 1)} t/h\n`;
-    message += `⠂ Dump Condenser = ${formatNum(data['Dump_Condenser_t/h'], 1)} t/h\n`;
-    message += `⠂ PCV-6105 = ${formatNum(data['PCV6105_t/h'], 1)} t/h\n`;
-    message += `*⠂ Total Konsumsi* = ${formatNum(data['Total_Konsumsi_Steam_t/h'], 1)} t/h\n\n`;
+    userElements.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = currentUser.name;
+    });
+}
+
+function requireAuth() {
+    if (!isAuthenticated || !isSessionValid(getSession())) {
+        clearSession();
+        showLoginScreen();
+        showCustomAlert('Sesi Anda telah berakhir. Silakan login kembali.', 'error');
+        return false;
+    }
+    return true;
+}
+
+function loadUserStats() {
+    const totalAreas = Object.keys(AREAS).length;
+    let completedAreas = 0;
     
-    // TANPA EMOJI
-    message += `*${data.LPS_Balance_Status}* = ${formatNum(data['LPS_Balance_t/h'], 1)} t/h\n\n`;
+    Object.entries(AREAS).forEach(([areaName, params]) => {
+        const filled = currentInput[areaName] ? Object.keys(currentInput[areaName]).length : 0;
+        if (filled === params.length && filled > 0) completedAreas++;
+    });
     
-    message += `*Monitoring*\n`;
-    // Exact match dengan nama field di submitBalancingData
-    message += `⠂ Steam Extraction PI-6122 = ${formatNum(data['PI6122_kg/cm2'], 2)} kg/cm² & TI-6112 = ${formatNum(data['TI6112_C'], 1)} °C\n`;
-    message += `⠂ Temp. Cooling Air Inlet (TI-6146/47) = ${formatNum(data['TI6146_C'], 2)} °C\n`;
-    message += `⠂ Temp. Lube Oil (TI-6126) = ${formatNum(data['TI6126_C'], 2)} °C\n`;
-    message += `⠂ Axial Displacement = ${formatNum(data['Axial_Displacement_mm'], 2)} mm (High : 0,6 mm)\n`;
-    message += `⠂ Vibrasi VI-6102 = ${formatNum(data['VI6102_μm'], 2)} μm (High : 85 μm)\n`;
-    message += `⠂ Temp. Journal Bearing TE-6134 = ${formatNum(data['TE6134_C'], 1)} °C (High : 115 °C)\n`;
-    message += `⠂ CT SU = Fan : ${formatInt(data['CT_SU_Fan'])} & Pompa : ${formatInt(data['CT_SU_Pompa'])}\n`;
-    message += `⠂ CT SA = Fan : ${formatInt(data['CT_SA_Fan'])} & Pompa : ${formatInt(data['CT_SA_Pompa'])}\n\n`;
+    const statProgress = document.getElementById('statProgress');
+    const statAreas = document.getElementById('statAreas');
     
-    message += `*Kegiatan Shift ${data.Shift}*\n`;
-    message += data.Kegiatan_Shift || '-';
+    if (statProgress) {
+        const percent = Math.round((completedAreas / totalAreas) * 100);
+        statProgress.textContent = `${percent}%`;
+    }
     
-    return message;
+    if (statAreas) {
+        statAreas.textContent = `${completedAreas}/${totalAreas}`;
+    }
 }
 
 // ============================================
@@ -604,7 +539,8 @@ function showCustomAlert(msg, type = 'success') {
     const titleMap = {
         'success': 'Berhasil',
         'error': 'Error',
-        'warning': 'Peringatan'
+        'warning': 'Peringatan',
+        'info': 'Informasi'
     };
     alertTitle.textContent = titleMap[type] || 'Informasi';
     
@@ -629,6 +565,14 @@ function showCustomAlert(msg, type = 'success') {
                 <path d="M26 10 L26 30 M26 34 L26 38"></path>
             </svg>
         `;
+    } else if (type === 'info') {
+        alertIconWrapper.innerHTML = `
+            <div class="alert-icon-bg" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);"></div>
+            <svg class="alert-icon-svg" viewBox="0 0 52 52" style="stroke: #3b82f6;">
+                <circle cx="26" cy="26" r="25"></circle>
+                <path d="M26 10 L26 30 M26 34 L26 36"/>
+            </svg>
+        `;
     } else {
         alertIconWrapper.innerHTML = `
             <div class="alert-icon-bg" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);"></div>
@@ -641,7 +585,7 @@ function showCustomAlert(msg, type = 'success') {
     
     customAlert.classList.remove('hidden');
     
-    if (type === 'success') {
+    if (type === 'success' || type === 'info') {
         autoCloseTimer = setTimeout(() => {
             if (!customAlert.classList.contains('hidden')) closeAlert();
         }, 3000);
@@ -718,7 +662,6 @@ function fetchLastData() {
 }
 
 function updateStatusIndicator(isOnline) {
-    // Implementation depends on your UI
     console.log('Status:', isOnline ? 'Online' : 'Offline');
 }
 
@@ -824,7 +767,7 @@ function jumpToStep(index) {
             const fullLabel = AREAS[activeArea][activeIdx];
             if (!currentInput[activeArea]) currentInput[activeArea] = {};
             currentInput[activeArea][fullLabel] = currentVal;
-            localStorage.setItem('draft_turbine', JSON.stringify(currentInput));
+            localStorage.setItem(DRAFT_KEYS.LOGSHEET, JSON.stringify(currentInput));
         }
     }
     activeIdx = index;
@@ -938,7 +881,7 @@ function saveStep() {
     if (val) {
         if (!currentInput[activeArea]) currentInput[activeArea] = {};
         currentInput[activeArea][fullLabel] = val;
-        localStorage.setItem('draft_turbine', JSON.stringify(currentInput));
+        localStorage.setItem(DRAFT_KEYS.LOGSHEET, JSON.stringify(currentInput));
     }
     
     if (activeIdx < AREAS[activeArea].length - 1) {
@@ -959,9 +902,6 @@ function goBack() {
     }
 }
 
-// ============================================
-// SEND LOGSHEET TO SPREADSHEET
-// ============================================
 async function sendToSheet() {
     if (!requireAuth()) return;
     
@@ -1000,7 +940,7 @@ async function sendToSheet() {
         showCustomAlert('✓ Data berhasil dikirim ke sistem!', 'success');
         
         currentInput = {};
-        localStorage.removeItem('draft_turbine');
+        localStorage.removeItem(DRAFT_KEYS.LOGSHEET);
         
         setTimeout(() => {
             navigateTo('homeScreen');
@@ -1010,18 +950,17 @@ async function sendToSheet() {
         console.error('Error sending data:', error);
         showCustomAlert('Gagal mengirim data. Data disimpan lokal.', 'error');
         
-        let offlineData = JSON.parse(localStorage.getItem('offline_logsheets') || '[]');
+        let offlineData = JSON.parse(localStorage.getItem(DRAFT_KEYS.LOGSHEET_OFFLINE) || '[]');
         offlineData.push(finalData);
-        localStorage.setItem('offline_logsheets', JSON.stringify(offlineData));
+        localStorage.setItem(DRAFT_KEYS.LOGSHEET_OFFLINE, JSON.stringify(offlineData));
     } finally {
         if (loader) loader.style.display = 'none';
     }
 }
 
 // ============================================
-// TPM FUNCTIONS (Total Productive Maintenance)
+// TPM FUNCTIONS
 // ============================================
-
 function updateTPMUserInfo() {
     if (!currentUser) return;
     
@@ -1035,8 +974,6 @@ function updateTPMUserInfo() {
 function openTPMArea(areaName) {
     if (!requireAuth()) return;
     
-    console.log('Opening TPM Area:', areaName);
-    
     activeTPMArea = areaName;
     currentTPMPhoto = null;
     currentTPMStatus = '';
@@ -1047,7 +984,6 @@ function openTPMArea(areaName) {
     if (title) title.textContent = areaName;
     
     updateTPMUserInfo();
-    
     navigateTo('tpmInputScreen');
 }
 
@@ -1067,9 +1003,7 @@ function resetTPMForm() {
         `;
     }
     
-    if (photoSection) {
-        photoSection.classList.remove('has-photo');
-    }
+    if (photoSection) photoSection.classList.remove('has-photo');
     
     const notes = document.getElementById('tpmNotes');
     if (notes) notes.value = '';
@@ -1082,25 +1016,15 @@ function resetTPMForm() {
 
 function resetTPMStatusButtons() {
     const buttons = ['btnNormal', 'btnAbnormal', 'btnOff'];
-    
     buttons.forEach((id) => {
         const btn = document.getElementById(id);
-        if (btn) {
-            btn.className = 'status-btn';
-        }
+        if (btn) btn.className = 'status-btn';
     });
 }
 
 function handleTPMPhoto(event) {
-    console.log('Handle TPM Photo triggered');
-    
     const file = event.target.files[0];
-    if (!file) {
-        console.log('No file selected');
-        return;
-    }
-    
-    console.log('File selected:', file.name, 'Size:', file.size);
+    if (!file) return;
     
     if (file.size > 5 * 1024 * 1024) {
         showCustomAlert('Ukuran foto terlalu besar. Maksimal 5MB.', 'error');
@@ -1115,38 +1039,22 @@ function handleTPMPhoto(event) {
     }
     
     const reader = new FileReader();
-    
     reader.onload = function(e) {
-        console.log('File loaded successfully');
         currentTPMPhoto = e.target.result;
-        
         const preview = document.getElementById('tpmPhotoPreview');
         const photoSection = document.getElementById('tpmPhotoSection');
         
         if (preview) {
             preview.innerHTML = `<img src="${currentTPMPhoto}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 12px;" alt="TPM Photo">`;
         }
-        
-        if (photoSection) {
-            photoSection.classList.add('has-photo');
-        }
-        
+        if (photoSection) photoSection.classList.add('has-photo');
         showCustomAlert('Foto berhasil diambil!', 'success');
     };
-    
-    reader.onerror = function(e) {
-        console.error('Error reading file:', e);
-        showCustomAlert('Gagal membaca foto. Coba lagi.', 'error');
-    };
-    
     reader.readAsDataURL(file);
 }
 
 function selectTPMStatus(status) {
-    console.log('Selecting TPM Status:', status);
-    
     currentTPMStatus = status;
-    
     resetTPMStatusButtons();
     
     const buttonMap = {
@@ -1158,9 +1066,7 @@ function selectTPMStatus(status) {
     const selected = buttonMap[status];
     if (selected) {
         const btn = document.getElementById(selected.id);
-        if (btn) {
-            btn.classList.add(selected.class);
-        }
+        if (btn) btn.classList.add(selected.class);
     }
     
     if ((status === 'abnormal' || status === 'off') && !currentTPMPhoto) {
@@ -1172,8 +1078,6 @@ function selectTPMStatus(status) {
 
 async function submitTPMData() {
     if (!requireAuth()) return;
-    
-    console.log('Submitting TPM Data...');
     
     const notes = document.getElementById('tpmNotes')?.value.trim() || '';
     const action = document.getElementById('tpmAction')?.value || '';
@@ -1195,11 +1099,9 @@ async function submitTPMData() {
     
     const loader = document.getElementById('loader');
     const loaderText = document.querySelector('.loader-text h3');
-    const loaderDesc = document.querySelector('.loader-text p');
     
     if (loader) loader.style.display = 'flex';
     if (loaderText) loaderText.textContent = 'Mengupload TPM...';
-    if (loaderDesc) loaderDesc.textContent = 'Sedang mengupload foto...';
     
     const tpmData = {
         type: 'TPM',
@@ -1212,72 +1114,231 @@ async function submitTPMData() {
         timestamp: new Date().toISOString()
     };
     
-    console.log('Sending TPM Data:', tpmData);
-    
     try {
         await fetch(GAS_URL, {
             method: 'POST',
             mode: 'no-cors',
-            headers: { 
-                'Content-Type': 'application/json'
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(tpmData)
         });
         
-        let tpmHistory = JSON.parse(localStorage.getItem('tpm_history') || '[]');
-        tpmHistory.push({
-            ...tpmData,
-            photo: '[UPLOADED]' 
-        });
-        localStorage.setItem('tpm_history', JSON.stringify(tpmHistory));
+        let tpmHistory = JSON.parse(localStorage.getItem(DRAFT_KEYS.TPM_HISTORY) || '[]');
+        tpmHistory.push({...tpmData, photo: '[UPLOADED]'});
+        localStorage.setItem(DRAFT_KEYS.TPM_HISTORY, JSON.stringify(tpmHistory));
         
         showCustomAlert(`✓ Data TPM ${activeTPMArea} berhasil disimpan!`, 'success');
-        
         currentTPMPhoto = null;
         currentTPMStatus = '';
         
-        setTimeout(() => {
-            navigateTo('tpmScreen');
-        }, 2000);
+        setTimeout(() => navigateTo('tpmScreen'), 2000);
         
     } catch (error) {
-        console.error('TPM Error:', error);
-        
-        let offlineTPM = JSON.parse(localStorage.getItem('tpm_offline') || '[]');
+        let offlineTPM = JSON.parse(localStorage.getItem(DRAFT_KEYS.TPM_OFFLINE) || '[]');
         offlineTPM.push(tpmData);
-        localStorage.setItem('tpm_offline', JSON.stringify(offlineTPM));
-        
-        showCustomAlert('Gagal mengupload. Data disimpan lokal untuk diupload nanti.', 'error');
+        localStorage.setItem(DRAFT_KEYS.TPM_OFFLINE, JSON.stringify(offlineTPM));
+        showCustomAlert('Gagal mengupload. Data disimpan lokal.', 'error');
     } finally {
         if (loader) loader.style.display = 'none';
     }
 }
 
 // ============================================
+// BALANCING DRAFT FUNCTIONS (AUTO-SAVE)
+// ============================================
+function saveBalancingDraft() {
+    try {
+        const draftData = {};
+        
+        BALANCING_FIELDS.forEach(fieldId => {
+            const element = document.getElementById(fieldId);
+            if (element) {
+                draftData[fieldId] = element.value;
+            }
+        });
+        
+        // Simpan juga shift dan USERNAME untuk proteksi ganti operator
+        draftData._shift = currentShift;
+        draftData._savedAt = new Date().toISOString();
+        draftData._user = currentUser ? currentUser.name : 'Unknown';
+        draftData._userId = currentUser ? currentUser.id : 'unknown';
+        
+        localStorage.setItem(DRAFT_KEYS.BALANCING, JSON.stringify(draftData));
+        console.log('Balancing draft saved for user:', draftData._user);
+        updateDraftStatusIndicator();
+        
+    } catch (e) {
+        console.error('Error saving balancing draft:', e);
+    }
+}
+
+function loadBalancingDraft() {
+    try {
+        const draftData = JSON.parse(localStorage.getItem(DRAFT_KEYS.BALANCING));
+        
+        if (!draftData) {
+            console.log('No balancing draft found');
+            return false;
+        }
+        
+        // ===== CEK USER - PROTEKSI GANTI OPERATOR =====
+        const draftUser = draftData._user || 'Unknown';
+        const currentUserName = currentUser ? currentUser.name : 'Unknown';
+        
+        if (draftUser !== currentUserName) {
+            // User berbeda, tampilkan konfirmasi
+            const useData = confirm(
+                `⚠️ PERHATIAN\n\n` +
+                `Ada data tersimpan dari operator: ${draftUser}\n` +
+                `Anda login sebagai: ${currentUserName}\n\n` +
+                `Pilih OK untuk menggunakan data ${draftUser}\n` +
+                `Pilih Cancel untuk mulai dari data template terakhir`
+            );
+            
+            if (!useData) {
+                // User pilih tidak pakai, load dari history/template
+                loadLastBalancingData();
+                return true;
+            }
+            // Jika OK, lanjut load draft seperti biasa
+        }
+        // ================================================
+        
+        // Load semua field
+        let loadedCount = 0;
+        BALANCING_FIELDS.forEach(fieldId => {
+            const element = document.getElementById(fieldId);
+            if (element && draftData[fieldId] !== undefined && draftData[fieldId] !== '') {
+                element.value = draftData[fieldId];
+                loadedCount++;
+            }
+        });
+        
+        // Update UI khusus untuk ekspor/impor jika ada nilai
+        const eksporEl = document.getElementById('eksporMW');
+        if (eksporEl && eksporEl.value) {
+            handleEksporInput(eksporEl);
+        }
+        
+        calculateLPBalance();
+        
+        if (loadedCount > 0) {
+            if (draftUser !== currentUserName) {
+                showCustomAlert(`Data dari ${draftUser} dimuat. Silakan edit sesuai kondisi Anda.`, 'warning');
+            } else {
+                showCustomAlert(`Draft tersimpan ditemukan! ${loadedCount} field telah diisi.`, 'success');
+            }
+        }
+        
+        return loadedCount > 0;
+        
+    } catch (e) {
+        console.error('Error loading balancing draft:', e);
+        return false;
+    }
+}
+
+function clearBalancingDraft() {
+    try {
+        localStorage.removeItem(DRAFT_KEYS.BALANCING);
+        console.log('Balancing draft cleared');
+        updateDraftStatusIndicator();
+    } catch (e) {
+        console.error('Error clearing balancing draft:', e);
+    }
+}
+
+function setupBalancingAutoSave() {
+    if (balancingAutoSaveInterval) {
+        clearInterval(balancingAutoSaveInterval);
+    }
+    
+    // Auto-save setiap 10 detik jika ada perubahan
+    let lastData = '';
+    balancingAutoSaveInterval = setInterval(() => {
+        const currentData = JSON.stringify(getCurrentBalancingData());
+        if (currentData !== lastData && hasBalancingData()) {
+            saveBalancingDraft();
+            lastData = currentData;
+        }
+    }, 10000);
+    
+    // Auto-save saat user meninggalkan halaman
+    window.addEventListener('beforeunload', () => {
+        if (hasBalancingData()) saveBalancingDraft();
+    });
+    
+    // Auto-save saat input berubah (debounced)
+    const formContainer = document.getElementById('balancingScreen');
+    if (formContainer) {
+        let timeout;
+        formContainer.addEventListener('input', (e) => {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => saveBalancingDraft(), 1000);
+            }
+        });
+    }
+}
+
+function getCurrentBalancingData() {
+    const data = {};
+    BALANCING_FIELDS.forEach(fieldId => {
+        const element = document.getElementById(fieldId);
+        if (element) data[fieldId] = element.value;
+    });
+    return data;
+}
+
+function hasBalancingData() {
+    const data = getCurrentBalancingData();
+    return Object.values(data).some(val => val !== '' && val !== null && val !== undefined);
+}
+
+function updateDraftStatusIndicator() {
+    const indicator = document.getElementById('draftStatusIndicator');
+    if (indicator) {
+        const hasDraft = localStorage.getItem(DRAFT_KEYS.BALANCING) !== null;
+        indicator.style.display = hasDraft ? 'flex' : 'none';
+        if (hasDraft) {
+            indicator.innerHTML = `
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <line x1="16" y1="13" x2="8" y2="13"/>
+                    <line x1="16" y1="17" x2="8" y2="17"/>
+                    <polyline points="10 9 9 9 8 9"/>
+                </svg>
+                <span>Draft tersimpan</span>
+            `;
+        }
+    }
+}
+
+// ============================================
 // BALANCING FUNCTIONS (INPUT BALANCING)
 // ============================================
-
 function initBalancingScreen() {
     if (!requireAuth()) return;
     
     const balancingUser = document.getElementById('balancingUser');
     if (balancingUser && currentUser) balancingUser.textContent = currentUser.name;
     
-    const now = new Date();
-    const dateInput = document.getElementById('balancingDate');
-    const timeInput = document.getElementById('balancingTime');
-    
-    if (dateInput) {
-        dateInput.value = now.toISOString().split('T')[0];
-    }
-    if (timeInput) {
-        timeInput.value = now.toTimeString().slice(0, 5);
-    }
-    
     detectShift();
-    setDefaultBalancingValues();
-    //calculateTotal3B(); //
+    
+    // Cek draft dan user
+    const draftData = JSON.parse(localStorage.getItem(DRAFT_KEYS.BALANCING));
+    const hasDraft = draftData !== null;
+    
+    if (hasDraft) {
+        loadBalancingDraft();
+    } else {
+        // Tidak ada draft, load dari history/template
+        loadLastBalancingData();
+    }
+    
     calculateLPBalance();
+    setupBalancingAutoSave();
+    setTimeout(updateDraftStatusIndicator, 100);
 }
 
 function detectShift() {
@@ -1300,7 +1361,7 @@ function detectShift() {
     const kegiatanNum = document.getElementById('kegiatanShiftNum');
     
     if (badge) badge.textContent = `SHIFT ${shift}`;
-    if (info) info.textContent = `${shiftText} • Auto Update`;
+    if (info) info.textContent = `${shiftText} • Auto Save Aktif`;
     if (kegiatanNum) kegiatanNum.textContent = shift;
     
     if (badge) {
@@ -1310,9 +1371,17 @@ function detectShift() {
     }
 }
 
+function setDefaultDateTime() {
+    const now = new Date();
+    const dateInput = document.getElementById('balancingDate');
+    const timeInput = document.getElementById('balancingTime');
+    
+    if (dateInput) dateInput.value = now.toISOString().split('T')[0];
+    if (timeInput) timeInput.value = now.toTimeString().slice(0, 5);
+}
+
 function setDefaultBalancingValues() {
     const defaults = {
-        'hvs65Current': '1',
         'hvs65l02Current': '1',
         'puri2Steam': '1.4',
         'deaeratorSteam': '2.5',
@@ -1328,6 +1397,115 @@ function setDefaultBalancingValues() {
         const el = document.getElementById(id);
         if (el && !el.value) el.value = value;
     });
+}
+
+function loadLastBalancingData() {
+    try {
+        const history = JSON.parse(localStorage.getItem(DRAFT_KEYS.BALANCING_HISTORY) || '[]');
+        
+        if (history.length === 0) {
+            // Tidak ada history, set default
+            setDefaultDateTime();
+            setDefaultBalancingValues();
+            return;
+        }
+        
+        // Ambil data terakhir dari history
+        const lastData = history[history.length - 1];
+        
+        // Field mapping dari history ke form
+        const fieldMapping = {
+            'loadMW': lastData['Load_MW'],
+            'eksporMW': lastData['Ekspor_Impor_MW'],
+            'plnMW': lastData['PLN_MW'],
+            'ubbMW': lastData['UBB_MW'],
+            'pieMW': lastData['PIE_MW'],
+            'tg65MW': lastData['TG65_MW'],
+            'tg66MW': lastData['TG66_MW'],
+            'gtgMW': lastData['GTG_MW'],
+            'ss6500MW': lastData['SS6500_MW'],
+            'ss2000Via': lastData['SS2000_Via'],
+            'activePowerMW': lastData['Active_Power_MW'],
+            'reactivePowerMVAR': lastData['Reactive_Power_MVAR'],
+            'currentS': lastData['Current_S_A'],
+            'voltageV': lastData['Voltage_V'],
+            'hvs65l02MW': lastData['HVS65_L02_MW'],
+            'hvs65l02Current': lastData['HVS65_L02_Current_A'],
+            'fq1105': lastData['Produksi_Steam_SA_t/h'],
+            'stgSteam': lastData['STG_Steam_t/h'],
+            'pa2Steam': lastData['PA2_Steam_t/h'],
+            'puri2Steam': lastData['Puri2_Steam_t/h'],
+            'melterSA2': lastData['Melter_SA2_t/h'],
+            'ejectorSteam': lastData['Ejector_t/h'],
+            'glandSealSteam': lastData['Gland_Seal_t/h'],
+            'deaeratorSteam': lastData['Deaerator_t/h'],
+            'dumpCondenser': lastData['Dump_Condenser_t/h'],
+            'pcv6105': lastData['PCV6105_t/h'],
+            'pi6122': lastData['PI6122_kg/cm2'],
+            'ti6112': lastData['TI6112_C'],
+            'ti6146': lastData['TI6146_C'],
+            'ti6126': lastData['TI6126_C'],
+            'axialDisplacement': lastData['Axial_Displacement_mm'],
+            'vi6102': lastData['VI6102_μm'],
+            'te6134': lastData['TE6134_C'],
+            'ctSuFan': lastData['CT_SU_Fan'],
+            'ctSuPompa': lastData['CT_SU_Pompa'],
+            'ctSaFan': lastData['CT_SA_Fan'],
+            'ctSaPompa': lastData['CT_SA_Pompa']
+        };
+        
+        // Isi field
+        Object.entries(fieldMapping).forEach(([id, value]) => {
+            const el = document.getElementById(id);
+            if (el && value !== undefined && value !== null && value !== '') {
+                el.value = value;
+            }
+        });
+        
+        // Update UI Ekspor/Impor
+        const eksporEl = document.getElementById('eksporMW');
+        if (eksporEl && eksporEl.value) {
+            handleEksporInput(eksporEl);
+        }
+        
+        // Update tanggal/jam ke sekarang (walaupun data lama, waktu harus sekarang)
+        setDefaultDateTime();
+        
+        // Simpan sebagai draft baru
+        saveBalancingDraft();
+        
+        showCustomAlert('Data terakhir berhasil dimuat. Sesuaikan dengan kondisi saat ini.', 'success');
+        
+    } catch (e) {
+        console.error('Error loading last data:', e);
+        setDefaultDateTime();
+        setDefaultBalancingValues();
+    }
+}
+
+function resetBalancingForm() {
+    if (!confirm('Yakin reset form? Data akan dikembalikan ke default.')) {
+        return;
+    }
+    
+    // Clear draft
+    clearBalancingDraft();
+    
+    // Set waktu sekarang
+    setDefaultDateTime();
+    
+    // Set nilai default (tidak semua kosong, tapi default operasional)
+    setDefaultBalancingValues();
+    
+    // Kosongkan field yang selalu berubah
+    const dynamicFields = ['loadMW', 'eksporMW', 'kegiatanShift', 'total3BMW'];
+    dynamicFields.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+    
+    calculateLPBalance();
+    showCustomAlert('Form direset ke default.', 'success');
 }
 
 function handleEksporInput(input) {
@@ -1394,42 +1572,8 @@ function handleEksporInput(input) {
 function getEksporImporValue() {
     const input = document.getElementById('eksporMW');
     if (!input || !input.value) return 0;
-    
     const value = parseFloat(input.value);
-    if (isNaN(value)) return 0;
-    
-    return value;
-}
-
-function toggleSS2000Detail() {
-    const detail = document.getElementById('ss2000Detail');
-    if (detail) {
-        detail.style.display = 'block';
-        detail.style.opacity = '0';
-        setTimeout(() => {
-            detail.style.transition = 'opacity 0.3s';
-            detail.style.opacity = '1';
-        }, 10);
-    }
-}
-
-function calculateTotal3B() {
-    const ss6500 = parseFloat(document.getElementById('ss6500MW')?.value) || 0;
-    const activePower = parseFloat(document.getElementById('activePowerMW')?.value) || 0;
-    const hvs65 = parseFloat(document.getElementById('hvs65l02MW')?.value) || 0;
-    
-    const total = ss6500 + activePower + hvs65;
-    
-    const totalInput = document.getElementById('total3BMW');
-    if (totalInput) {
-        totalInput.value = total.toFixed(3);
-        totalInput.style.animation = 'none';
-        setTimeout(() => {
-            totalInput.style.animation = 'pulse 0.5s';
-        }, 10);
-    }
-    
-    return total;
+    return isNaN(value) ? 0 : value;
 }
 
 function calculateLPBalance() {
@@ -1498,6 +1642,95 @@ function calculateLPBalance() {
     return balance;
 }
 
+// ============================================
+// FORMAT WHATSAPP MESSAGE
+// ============================================
+function formatWhatsAppMessage(data) {
+    const formatNum = (num, maxDecimals = 2) => {
+        if (num === undefined || num === null || num === '' || isNaN(num)) return '-';
+        const parsed = parseFloat(num);
+        if (parsed === 0) return '0';
+        return parsed.toLocaleString('id-ID', {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: maxDecimals
+        });
+    };
+    
+    const formatInt = (num) => {
+        if (num === undefined || num === null || num === '' || isNaN(num)) return '-';
+        return parseInt(num).toLocaleString('id-ID');
+    };
+    
+    const tglParts = data.Tanggal.split('-');
+    const bulanIndo = {
+        '01': 'Januari', '02': 'Februari', '03': 'Maret', '04': 'April',
+        '05': 'Mei', '06': 'Juni', '07': 'Juli', '08': 'Agustus',
+        '09': 'September', '10': 'Oktober', '11': 'November', '12': 'Desember'
+    };
+    const tglIndo = `${tglParts[2]} ${bulanIndo[tglParts[1]]} ${tglParts[0]}`;
+    
+    let message = `*Update STG 17,5 MW*\n`;
+    message += `Tgl ${tglIndo}\n`;
+    message += `Jam ${data.Jam}\n\n`;
+    
+    message += `*Output Power STG 17,5*\n`;
+    message += `⠂ Load = ${formatNum(data.Load_MW)} MW\n`;
+    message += `⠂ ${data.Ekspor_Impor_Status} = ${formatNum(Math.abs(data.Ekspor_Impor_MW), 3)} MW\n\n`;
+    
+    message += `*Balance Power SCADA*\n`;
+    message += `⠂ PLN = ${formatNum(data.PLN_MW)}MW\n`;
+    message += `⠂ UBB = ${formatNum(data.UBB_MW)}MW\n`;
+    message += `⠂ PIE = ${formatNum(data.PIE_MW)} MW\n`;
+    message += `⠂ TG-65 = ${formatNum(data.TG65_MW)} MW\n`;
+    message += `⠂ TG-66 = ${formatNum(data.TG66_MW)} MW\n`;
+    message += `⠂ GTG = ${formatNum(data.GTG_MW)} MW\n\n`;
+    
+    message += `*Konsumsi Power 3B*\n`;
+    message += `● SS-6500 (TR-Main 01) = ${formatNum(data.SS6500_MW, 3)} MW\n`;
+    message += `● SS-2000 *Via ${data.SS2000_Via}*\n`;
+    message += `  ⠂ Active power = ${formatNum(data.Active_Power_MW, 3)} MW\n`;
+    message += `  ⠂ Reactive power = ${formatNum(data.Reactive_Power_MVAR, 3)} MVAR\n`;
+    message += `  ⠂ Current S = ${formatNum(data.Current_S_A, 1)} A\n`;
+    message += `  ⠂ Voltage = ${formatInt(data.Voltage_V)} V\n`;
+    message += `  ⠂ (HVS65 L02) = ${formatNum(data.HVS65_L02_MW, 3)} MW (${formatInt(data.HVS65_L02_Current_A)} A)\n`;
+    message += `● Total 3B = ${formatNum(data.Total_3B_MW, 3)}MW\n\n`;
+    
+    message += `*Produksi Steam SA*\n`;
+    message += `⠂ FQ-1105 = ${formatNum(data['Produksi_Steam_SA_t/h'], 1)} t/h\n\n`;
+    
+    message += `*Konsumsi Steam 3B*\n`;
+    message += `⠂ STG 17,5 = ${formatNum(data['STG_Steam_t/h'], 1)} t/h\n`;
+    message += `⠂ PA2 = ${formatNum(data['PA2_Steam_t/h'], 1)} t/h\n`;
+    message += `⠂ Puri2 = ${formatNum(data['Puri2_Steam_t/h'], 1)} t/h\n`;
+    message += `⠂ Melter SA2 = ${formatNum(data['Melter_SA2_t/h'], 1)} t/h\n`;
+    message += `⠂ Ejector = ${formatNum(data['Ejector_t/h'], 1)} t/h\n`;
+    message += `⠂ Gland Seal = ${formatNum(data['Gland_Seal_t/h'], 1)} t/h\n`;
+    message += `⠂ Deaerator = ${formatNum(data['Deaerator_t/h'], 1)} t/h\n`;
+    message += `⠂ Dump Condenser = ${formatNum(data['Dump_Condenser_t/h'], 1)} t/h\n`;
+    message += `⠂ PCV-6105 = ${formatNum(data['PCV6105_t/h'], 1)} t/h\n`;
+    message += `*⠂ Total Konsumsi* = ${formatNum(data['Total_Konsumsi_Steam_t/h'], 1)} t/h\n\n`;
+    
+    message += `*${data.LPS_Balance_Status}* = ${formatNum(data['LPS_Balance_t/h'], 1)} t/h\n\n`;
+    
+    message += `*Monitoring*\n`;
+    message += `⠂ Steam Extraction PI-6122 = ${formatNum(data['PI6122_kg/cm2'], 2)} kg/cm² & TI-6112 = ${formatNum(data['TI6112_C'], 1)} °C\n`;
+    message += `⠂ Temp. Cooling Air Inlet (TI-6146/47) = ${formatNum(data['TI6146_C'], 2)} °C\n`;
+    message += `⠂ Temp. Lube Oil (TI-6126) = ${formatNum(data['TI6126_C'], 2)} °C\n`;
+    message += `⠂ Axial Displacement = ${formatNum(data['Axial_Displacement_mm'], 2)} mm (High : 0,6 mm)\n`;
+    message += `⠂ Vibrasi VI-6102 = ${formatNum(data['VI6102_μm'], 2)} μm (High : 85 μm)\n`;
+    message += `⠂ Temp. Journal Bearing TE-6134 = ${formatNum(data['TE6134_C'], 1)} °C (High : 115 °C)\n`;
+    message += `⠂ CT SU = Fan : ${formatInt(data['CT_SU_Fan'])} & Pompa : ${formatInt(data['CT_SU_Pompa'])}\n`;
+    message += `⠂ CT SA = Fan : ${formatInt(data['CT_SA_Fan'])} & Pompa : ${formatInt(data['CT_SA_Pompa'])}\n\n`;
+    
+    message += `*Kegiatan Shift ${data.Shift}*\n`;
+    message += data.Kegiatan_Shift || '-';
+    
+    return message;
+}
+
+// ============================================
+// SUBMIT BALANCING
+// ============================================
 async function submitBalancingData() {
     if (!requireAuth()) return;
     
@@ -1578,7 +1811,7 @@ async function submitBalancingData() {
         'Kegiatan_Shift': document.getElementById('kegiatanShift')?.value || ''
     };
     
-        try {
+    try {
         await fetch(GAS_URL, {
             method: 'POST',
             mode: 'no-cors',
@@ -1588,25 +1821,24 @@ async function submitBalancingData() {
         
         showCustomAlert('✓ Data Balancing berhasil dikirim!', 'success');
         
-        // ===== AUTO OPEN WHATSAPP =====
-        // Gunakan fungsi formatWhatsAppMessage yang sudah dibuat
-        const waMessage = encodeURIComponent(formatWhatsAppMessage(balancingData));
-        const waNumber = '6282233069673'; // Nomor Anda sudah benar
+        // CATATAN: Draft TIDAK dihapus agar bisa jadi template shift berikutnya
+        // Jika ingin hapus draft setelah submit, uncomment baris di bawah:
+        // clearBalancingDraft();
         
-        // Buka WhatsApp setelah 1.2 detik
-        setTimeout(() => {
-            // Perbaikan: Hapus spasi setelah wa.me/
-            window.open(`https://wa.me/${waNumber}?text=${waMessage}`, '_blank');
-        }, 1200);
-        // ==============================
-        
-        // Simpan ke history
-        let balancingHistory = JSON.parse(localStorage.getItem('balancing_history') || '[]');
+        // Simpan ke history untuk fitur "Gunakan Data Terakhir"
+        let balancingHistory = JSON.parse(localStorage.getItem(DRAFT_KEYS.BALANCING_HISTORY) || '[]');
         balancingHistory.push({
             ...balancingData,
             submittedAt: new Date().toISOString()
         });
-        localStorage.setItem('balancing_history', JSON.stringify(balancingHistory));
+        localStorage.setItem(DRAFT_KEYS.BALANCING_HISTORY, JSON.stringify(balancingHistory));
+        
+        // Auto open WhatsApp
+        const waMessage = encodeURIComponent(formatWhatsAppMessage(balancingData));
+        const waNumber = '6282233069673';
+        setTimeout(() => {
+            window.open(`https://wa.me/${waNumber}?text=${waMessage}`, '_blank');
+        }, 1200);
         
         setTimeout(() => {
             navigateTo('homeScreen');
@@ -1615,13 +1847,12 @@ async function submitBalancingData() {
     } catch (error) {
         console.error('Balancing Error:', error);
         
-        let offlineBalancing = JSON.parse(localStorage.getItem('balancing_offline') || '[]');
+        let offlineBalancing = JSON.parse(localStorage.getItem(DRAFT_KEYS.BALANCING_OFFLINE) || '[]');
         offlineBalancing.push(balancingData);
-        localStorage.setItem('balancing_offline', JSON.stringify(offlineBalancing));
+        localStorage.setItem(DRAFT_KEYS.BALANCING_OFFLINE, JSON.stringify(offlineBalancing));
         
         showCustomAlert('Gagal mengirim. Data disimpan lokal.', 'error');
     } finally {
-        const loader = document.getElementById('loader');
         if (loader) loader.style.display = 'none';
     }
 }
