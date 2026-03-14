@@ -1,7 +1,7 @@
 // ============================================
 // TURBINE LOGSHEET PRO - VERSION CONTROL
 // ============================================
-const APP_VERSION = '1.1.7'; // Updated with Balancing feature
+const APP_VERSION = '1.1.8'; // Updated with Balancing feature
 
 // ============================================
 // AUTHENTICATION SYSTEM
@@ -412,6 +412,95 @@ let currentTPMStatus = '';
 
 // Balancing State
 let currentShift = 3;
+
+// ============================================
+// FORMAT WHATSAPP MESSAGE
+// ============================================
+
+function formatWhatsAppMessage(data) {
+    // Format angka dengan koma untuk desimal (Indonesia)
+    const formatNum = (num, decimals = 2) => {
+        if (num === undefined || num === null || num === '') return '-';
+        return parseFloat(num).toLocaleString('id-ID', {
+            minimumFractionDigits: decimals,
+            maximumFractionDigits: decimals
+        });
+    };
+    
+    // Format integer tanpa desimal
+    const formatInt = (num) => {
+        if (num === undefined || num === null || num === '') return '-';
+        return parseInt(num).toLocaleString('id-ID');
+    };
+    
+    // Format tanggal Indonesia
+    const tglParts = data.Tanggal.split('-');
+    const bulanIndo = {
+        '01': 'Januari', '02': 'Februari', '03': 'Maret', '04': 'April',
+        '05': 'Mei', '06': 'Juni', '07': 'Juli', '08': 'Agustus',
+        '09': 'September', '10': 'Oktober', '11': 'November', '12': 'Desember'
+    };
+    const tglIndo = `${tglParts[2]} ${bulanIndo[tglParts[1]]} ${tglParts[0]}`;
+    
+    let message = `*Update STG 17,5 MW*\n`;
+    message += `Tgl ${tglIndo}\n`;
+    message += `Jam ${data.Jam}\n\n`;
+    
+    message += `*Output Power STG 17,5*\n`;
+    message += `⠂ Load = ${formatNum(data.Load_MW, 2)} MW\n`;
+    message += `⠂ ${data.Ekspor_Impor_Status} = ${formatNum(Math.abs(data.Ekspor_Impor_MW), 3)} MW\n\n`;
+    
+    message += `*Balance Power SCADA*\n`;
+    message += `⠂ PLN = ${formatNum(data.PLN_MW, 2)}MW\n`;
+    message += `⠂ UBB = ${formatNum(data.UBB_MW, 2)}MW\n`;
+    message += `⠂ PIE = ${formatNum(data.PIE_MW, 2)} MW\n`;
+    message += `⠂ TG-65 = ${formatNum(data.TG65_MW, 2)} MW\n`;
+    message += `⠂ TG-66 = ${formatNum(data.TG66_MW, 2)} MW\n`;
+    message += `⠂ GTG = ${formatNum(data.GTG_MW, 2)} MW\n\n`;
+    
+    message += `*Konsumsi Power 3B*\n`;
+    message += `● SS-6500 (TR-Main 01) = ${formatNum(data.SS6500_MW, 3)} MW\n`;
+    message += `● SS-2000 *Via ${data.SS2000_Via}*\n`;
+    message += `  ⠂ Active power = ${formatNum(data.Active_Power_MW, 3)} MW\n`;
+    message += `  ⠂ Reactive power = ${formatNum(data.Reactive_Power_MVAR, 3)} MVAR\n`;
+    message += `  ⠂ Current S = ${formatNum(data.Current_S_A, 1)} A\n`;
+    message += `  ⠂ Voltage = ${formatInt(data.Voltage_V)} V\n`;
+    message += `  ⠂ (HVS65 L02) = ${formatNum(data.HVS65_L02_MW, 3)} MW (${formatInt(data.HVS65_L02_Current_A || 0)} A)\n`;
+    message += `● Total 3B = ${formatNum(data.Total_3B_MW, 3)}MW\n\n`;
+    
+    message += `*Produksi Steam SA*\n`;
+    message += `⠂ FQ-1105 = ${formatNum(data['Produksi_Steam_SA_t/h'], 1)} t/h\n\n`;
+    
+    message += `*Konsumsi Steam 3B*\n`;
+    message += `⠂ STG 17,5 = ${formatNum(data.STG_Steam_t_h, 1)} t/h\n`;
+    message += `⠂ PA2 = ${formatNum(data.PA2_Steam_t_h, 1)} t/h\n`;
+    message += `⠂ Puri2 = ${formatNum(data.Puri2_Steam_t_h, 1)} t/h\n`;
+    message += `⠂ Melter SA2 = ${formatNum(data.Melter_SA2_t_h, 1)} t/h\n`;
+    message += `⠂ Ejector = ${formatNum(data.Ejector_t_h, 1)} t/h\n`;
+    message += `⠂ Gland Seal = ${formatNum(data.Gland_Seal_t_h, 1)} t/h\n`;
+    message += `⠂ Deaerator = ${formatNum(data.Deaerator_t_h, 1)} t/h\n`;
+    message += `⠂ Dump Condenser = ${formatNum(data.Dump_Condenser_t_h, 1)} t/h\n`;
+    message += `⠂ PCV-6105 = ${formatNum(data.PCV6105_t_h, 1)} t/h\n`;
+    message += `*⠂ Total Konsumsi* = ${formatNum(data['Total_Konsumsi_Steam_t/h'], 1)} t/h\n\n`;
+    
+    const lpsEmoji = data.LPS_Balance_Status.includes('Ekspor') ? '📤' : '📥';
+    message += `${lpsEmoji} *${data.LPS_Balance_Status}* = ${formatNum(data['LPS_Balance_t/h'], 1)} t/h\n\n`;
+    
+    message += `*Monitoring*\n`;
+    message += `⠂ Steam Extraction PI-6122 = ${formatNum(data.PI6122_kg_cm2, 2)} kg/cm² & TI-6112 = ${formatNum(data.TI6112_C, 1)} °C\n`;
+    message += `⠂ Temp. Cooling Air Inlet (TI-6146/47) = ${formatNum(data.TI6146_C, 2)} °C\n`;
+    message += `⠂ Temp. Lube Oil (TI-6126) = ${formatNum(data.TI6126_C, 2)} °C\n`;
+    message += `⠂ Axial Displacement = ${formatNum(data.Axial_Displacement_mm, 2)} mm (High : 0,6 mm)\n`;
+    message += `⠂ Vibrasi VI-6102 = ${formatNum(data.VI6102_μm, 2)} μm (High : 85 μm)\n`;
+    message += `⠂ Temp. Journal Bearing TE-6134 = ${formatNum(data.TE6134_C, 1)} °C (High : 115 °C)\n`;
+    message += `⠂ CT SU = Fan : ${formatInt(data.CT_SU_Fan)} & Pompa : ${formatInt(data.CT_SU_Pompa)}\n`;
+    message += `⠂ CT SA = Fan : ${formatInt(data.CT_SA_Fan)} & Pompa : ${formatInt(data.CT_SA_Pompa)}\n\n`;
+    
+    message += `*Kegiatan Shift ${data.Shift}*\n`;
+    message += data.Kegiatan_Shift || '-';
+    
+    return message;
+}
 
 // ============================================
 // INITIALIZATION
@@ -1485,7 +1574,7 @@ async function submitBalancingData() {
         'Kegiatan_Shift': document.getElementById('kegiatanShift')?.value || ''
     };
     
-    try {
+        try {
         await fetch(GAS_URL, {
             method: 'POST',
             mode: 'no-cors',
@@ -1494,31 +1583,20 @@ async function submitBalancingData() {
         });
         
         showCustomAlert('✓ Data Balancing berhasil dikirim!', 'success');
-        // ===== TAMBAHAN: AUTO OPEN WHATSAPP =====
-        // Format pesan yang akan dikirim ke WA
-        const waMessage = encodeURIComponent(
-            `*Update Balancing STG 17,5 MW*\n\n` +
-            `📅 Tanggal: ${balancingData.Tanggal}\n` +
-            `🕐 Jam: ${balancingData.Jam}\n` +
-            `👤 Operator: ${balancingData.Operator}\n` +
-            `🔄 Shift: ${balancingData.Shift}\n\n` +
-            `⚡ *Load:* ${balancingData.Load_MW} MW\n` +
-            `${balancingData.Ekspor_Impor_Status === 'Ekspor' ? '📤' : '📥'} *${balancingData.Ekspor_Impor_Status}:* ${Math.abs(balancingData.Ekspor_Impor_MW)} MW\n\n` +
-            `🔥 *Produksi Steam:* ${balancingData['Produksi_Steam_SA_t/h']} t/h\n` +
-            `💨 *Total Konsumsi:* ${balancingData['Total_Konsumsi_Steam_t/h']} t/h\n` +
-            `${balancingData.LPS_Balance_Status.includes('Ekspor') ? '📤' : '📥'} *${balancingData.LPS_Balance_Status}:* ${balancingData['LPS_Balance_t/h']} t/h\n\n` +
-            `✅ Data sudah tersimpan di sistem`
-        );
         
-        // Nomor WA tujuan (ganti dengan nomor grup/operator)
-        // Format: 6281234567890 (tanpa + atau 0 di depan)
-        const waNumber = '6282233069673'; // ⚠️ GANTI DENGAN NOMOR WA ANDA
+        // ===== AUTO OPEN WHATSAPP =====
+        // Gunakan fungsi formatWhatsAppMessage yang sudah dibuat
+        const waMessage = encodeURIComponent(formatWhatsAppMessage(balancingData));
+        const waNumber = '6282233069673'; // Nomor Anda sudah benar
         
-        // Buka WhatsApp setelah 1.5 detik (tunggu alert muncul dulu)
+        // Buka WhatsApp setelah 1.2 detik
         setTimeout(() => {
+            // Perbaikan: Hapus spasi setelah wa.me/
             window.open(`https://wa.me/${waNumber}?text=${waMessage}`, '_blank');
-        }, 1500);
-        // ==========================================================================
+        }, 1200);
+        // ==============================
+        
+        // Simpan ke history
         let balancingHistory = JSON.parse(localStorage.getItem('balancing_history') || '[]');
         balancingHistory.push({
             ...balancingData,
@@ -1539,6 +1617,7 @@ async function submitBalancingData() {
         
         showCustomAlert('Gagal mengirim. Data disimpan lokal.', 'error');
     } finally {
+        const loader = document.getElementById('loader');
         if (loader) loader.style.display = 'none';
     }
 }
