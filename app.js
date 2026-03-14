@@ -1,7 +1,7 @@
 // ============================================
 // TURBINE LOGSHEET PRO - VERSION CONTROL
 // ============================================
-const APP_VERSION = '1.1.3'; // Updated for GAS compatibility
+const APP_VERSION = '1.2.0'; // Updated with Balancing feature
 
 // ============================================
 // AUTHENTICATION SYSTEM
@@ -106,7 +106,6 @@ function clearSession() {
 function loginOperator() {
     const nameInput = document.getElementById('operatorName');
     const errorMsg = document.getElementById('loginError');
-    const rememberCheckbox = document.getElementById('rememberMe');
     
     if (!nameInput) {
         console.error('Login input not found');
@@ -145,8 +144,7 @@ function loginOperator() {
         role: 'operator'
     };
     
-    const rememberMe = rememberCheckbox ? rememberCheckbox.checked : false;
-    saveSession(user, rememberMe);
+    saveSession(user, false);
     currentUser = user;
     isAuthenticated = true;
     
@@ -207,7 +205,8 @@ function updateUIForAuthenticatedUser() {
         'tpmHeaderUser',
         'tpmInputUser',
         'areaListUser',
-        'paramUser'
+        'paramUser',
+        'balancingUser'
     ];
     
     userElements.forEach(id => {
@@ -411,6 +410,9 @@ let activeTPMArea = '';
 let currentTPMPhoto = null;
 let currentTPMStatus = '';
 
+// Balancing State
+let currentShift = 3;
+
 // ============================================
 // INITIALIZATION
 // ============================================
@@ -446,25 +448,10 @@ function setupLoginListeners() {
     }
 }
 
-// Setup TPM event listeners
 function setupTPMListeners() {
     const tpmCamera = document.getElementById('tpmCamera');
     if (tpmCamera) {
         tpmCamera.addEventListener('change', handleTPMPhoto);
-    }
-    
-    const btnNormal = document.getElementById('btnNormal');
-    const btnAbnormal = document.getElementById('btnAbnormal');
-    const btnOff = document.getElementById('btnOff');
-    
-    if (btnNormal) {
-        btnNormal.addEventListener('click', () => selectTPMStatus('normal'));
-    }
-    if (btnAbnormal) {
-        btnAbnormal.addEventListener('click', () => selectTPMStatus('abnormal'));
-    }
-    if (btnOff) {
-        btnOff.addEventListener('click', () => selectTPMStatus('off'));
     }
 }
 
@@ -521,7 +508,6 @@ function showCustomAlert(msg, type = 'success') {
         autoCloseTimer = null;
     }
     
-    // Handle warning type
     const titleMap = {
         'success': 'Berhasil',
         'error': 'Error',
@@ -582,7 +568,7 @@ function closeAlert() {
 // NAVIGATION
 // ============================================
 function navigateTo(screenId) {
-    const protectedScreens = ['homeScreen', 'areaListScreen', 'paramScreen', 'tpmScreen', 'tpmInputScreen'];
+    const protectedScreens = ['homeScreen', 'areaListScreen', 'paramScreen', 'tpmScreen', 'tpmInputScreen', 'balancingScreen'];
     if (protectedScreens.includes(screenId) && !requireAuth()) {
         return;
     }
@@ -606,19 +592,10 @@ function navigateTo(screenId) {
             updateOverallProgress();
         } else if (screenId === 'homeScreen') {
             loadUserStats();
+        } else if (screenId === 'balancingScreen') {
+            initBalancingScreen();
         }
     }
-}
-
-// Update TPM user info displays
-function updateTPMUserInfo() {
-    if (!currentUser) return;
-    
-    const tpmHeaderUser = document.getElementById('tpmHeaderUser');
-    const tpmInputUser = document.getElementById('tpmInputUser');
-    
-    if (tpmHeaderUser) tpmHeaderUser.textContent = currentUser.name;
-    if (tpmInputUser) tpmInputUser.textContent = currentUser.name;
 }
 
 // ============================================
@@ -648,17 +625,8 @@ function fetchLastData() {
 }
 
 function updateStatusIndicator(isOnline) {
-    const statusPill = document.getElementById('statusPill');
-    if (!statusPill) return;
-    const statusText = statusPill.querySelector('.status-text');
-    
-    if (isOnline) {
-        statusPill.className = 'status-indicator online';
-        if (statusText) statusText.textContent = 'Online';
-    } else {
-        statusPill.className = 'status-indicator offline';
-        if (statusText) statusText.textContent = 'Offline';
-    }
+    // Implementation depends on your UI
+    console.log('Status:', isOnline ? 'Online' : 'Offline');
 }
 
 function renderMenu() {
@@ -899,7 +867,7 @@ function goBack() {
 }
 
 // ============================================
-// SEND LOGSHEET TO SPREADSHEET - GAS COMPATIBLE
+// SEND LOGSHEET TO SPREADSHEET
 // ============================================
 async function sendToSheet() {
     if (!requireAuth()) return;
@@ -910,7 +878,6 @@ async function sendToSheet() {
     if (loader) loader.style.display = 'flex';
     if (loaderText) loaderText.textContent = 'Mengirim Data...';
     
-    // Flatten all parameters into a single object (GAS expects flat structure)
     let allParameters = {};
     Object.entries(currentInput).forEach(([areaName, params]) => {
         Object.entries(params).forEach(([paramName, value]) => {
@@ -918,19 +885,16 @@ async function sendToSheet() {
         });
     });
     
-    // Create final data object matching Google Apps Script expectations
-    // GAS expects: type, Operator (capital O), and flat parameter structure
     const finalData = {
         type: 'LOGSHEET',
-        Operator: currentUser ? currentUser.name : 'Unknown',  // Capital O as expected by GAS
-        OperatorId: currentUser ? currentUser.id : 'Unknown', // Optional tracking
-        ...allParameters // Spread to flatten - GAS expects parameters at root level
+        Operator: currentUser ? currentUser.name : 'Unknown',
+        OperatorId: currentUser ? currentUser.id : 'Unknown',
+        ...allParameters
     };
     
     console.log('Sending Logsheet Data:', finalData);
     
     try {
-        // Use no-cors mode for Google Apps Script
         await fetch(GAS_URL, {
             method: 'POST',
             mode: 'no-cors',
@@ -940,10 +904,8 @@ async function sendToSheet() {
             body: JSON.stringify(finalData)
         });
         
-        // Since no-cors doesn't return readable response, assume success after timeout
         showCustomAlert('✓ Data berhasil dikirim ke sistem!', 'success');
         
-        // Clear local data
         currentInput = {};
         localStorage.removeItem('draft_turbine');
         
@@ -955,7 +917,6 @@ async function sendToSheet() {
         console.error('Error sending data:', error);
         showCustomAlert('Gagal mengirim data. Data disimpan lokal.', 'error');
         
-        // Save to offline queue for retry
         let offlineData = JSON.parse(localStorage.getItem('offline_logsheets') || '[]');
         offlineData.push(finalData);
         localStorage.setItem('offline_logsheets', JSON.stringify(offlineData));
@@ -968,17 +929,16 @@ async function sendToSheet() {
 // TPM FUNCTIONS (Total Productive Maintenance)
 // ============================================
 
-/**
- * Navigate to TPM List Screen
- */
-function goToTPMScreen() {
-    if (!requireAuth()) return;
-    navigateTo('tpmScreen');
+function updateTPMUserInfo() {
+    if (!currentUser) return;
+    
+    const tpmHeaderUser = document.getElementById('tpmHeaderUser');
+    const tpmInputUser = document.getElementById('tpmInputUser');
+    
+    if (tpmHeaderUser) tpmHeaderUser.textContent = currentUser.name;
+    if (tpmInputUser) tpmInputUser.textContent = currentUser.name;
 }
 
-/**
- * Open specific TPM Area for input
- */
 function openTPMArea(areaName) {
     if (!requireAuth()) return;
     
@@ -988,24 +948,17 @@ function openTPMArea(areaName) {
     currentTPMPhoto = null;
     currentTPMStatus = '';
     
-    // Reset form
     resetTPMForm();
     
-    // Set title
     const title = document.getElementById('tpmInputTitle');
     if (title) title.textContent = areaName;
     
-    // Update user display
     updateTPMUserInfo();
     
     navigateTo('tpmInputScreen');
 }
 
-/**
- * Reset TPM form to default state
- */
 function resetTPMForm() {
-    // Reset photo preview
     const preview = document.getElementById('tpmPhotoPreview');
     const photoSection = document.getElementById('tpmPhotoSection');
     
@@ -1025,37 +978,26 @@ function resetTPMForm() {
         photoSection.classList.remove('has-photo');
     }
     
-    // Reset notes
     const notes = document.getElementById('tpmNotes');
     if (notes) notes.value = '';
     
-    // Reset action select
     const action = document.getElementById('tpmAction');
     if (action) action.value = '';
     
-    // Reset status buttons
     resetTPMStatusButtons();
 }
 
-/**
- * Reset all TPM status buttons
- */
 function resetTPMStatusButtons() {
     const buttons = ['btnNormal', 'btnAbnormal', 'btnOff'];
-    const classes = ['active-normal', 'active-abnormal', 'active-off'];
     
     buttons.forEach((id) => {
         const btn = document.getElementById(id);
         if (btn) {
             btn.className = 'status-btn';
-            classes.forEach(cls => btn.classList.remove(cls));
         }
     });
 }
 
-/**
- * Handle TPM Photo capture
- */
 function handleTPMPhoto(event) {
     console.log('Handle TPM Photo triggered');
     
@@ -1067,14 +1009,12 @@ function handleTPMPhoto(event) {
     
     console.log('File selected:', file.name, 'Size:', file.size);
     
-    // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
         showCustomAlert('Ukuran foto terlalu besar. Maksimal 5MB.', 'error');
         event.target.value = '';
         return;
     }
     
-    // Validate file type
     if (!file.type.startsWith('image/')) {
         showCustomAlert('File harus berupa gambar.', 'error');
         event.target.value = '';
@@ -1109,18 +1049,13 @@ function handleTPMPhoto(event) {
     reader.readAsDataURL(file);
 }
 
-/**
- * Select TPM Status
- */
 function selectTPMStatus(status) {
     console.log('Selecting TPM Status:', status);
     
     currentTPMStatus = status;
     
-    // Reset all buttons first
     resetTPMStatusButtons();
     
-    // Activate selected button
     const buttonMap = {
         'normal': { id: 'btnNormal', class: 'active-normal' },
         'abnormal': { id: 'btnAbnormal', class: 'active-abnormal' },
@@ -1135,7 +1070,6 @@ function selectTPMStatus(status) {
         }
     }
     
-    // Warning if abnormal/off without photo
     if ((status === 'abnormal' || status === 'off') && !currentTPMPhoto) {
         setTimeout(() => {
             showCustomAlert('⚠️ Kondisi abnormal/off wajib didokumentasikan dengan foto!', 'warning');
@@ -1143,9 +1077,6 @@ function selectTPMStatus(status) {
     }
 }
 
-/**
- * Submit TPM Data - GAS Compatible
- */
 async function submitTPMData() {
     if (!requireAuth()) return;
     
@@ -1154,7 +1085,6 @@ async function submitTPMData() {
     const notes = document.getElementById('tpmNotes')?.value.trim() || '';
     const action = document.getElementById('tpmAction')?.value || '';
     
-    // Validation
     if (!currentTPMStatus) {
         showCustomAlert('Pilih status kondisi terlebih dahulu!', 'error');
         return;
@@ -1170,7 +1100,6 @@ async function submitTPMData() {
         return;
     }
     
-    // Show loading
     const loader = document.getElementById('loader');
     const loaderText = document.querySelector('.loader-text h3');
     const loaderDesc = document.querySelector('.loader-text p');
@@ -1179,23 +1108,20 @@ async function submitTPMData() {
     if (loaderText) loaderText.textContent = 'Mengupload TPM...';
     if (loaderDesc) loaderDesc.textContent = 'Sedang mengupload foto...';
     
-    // Prepare data matching GAS expectations
-    // GAS expects: type, area, status, action, notes, photo, user (not operator)
     const tpmData = {
         type: 'TPM',
         area: activeTPMArea,
         status: currentTPMStatus,
-        action: action,      // GAS maps this to "Tindakan"
-        notes: notes,        // GAS maps this to "Keterangan"
+        action: action,
+        notes: notes,
         photo: currentTPMPhoto,
-        user: currentUser ? currentUser.name : 'Unknown',  // GAS expects 'user', not 'operator'
+        user: currentUser ? currentUser.name : 'Unknown',
         timestamp: new Date().toISOString()
     };
     
     console.log('Sending TPM Data:', tpmData);
     
     try {
-        // Send to Google Apps Script
         await fetch(GAS_URL, {
             method: 'POST',
             mode: 'no-cors',
@@ -1205,7 +1131,6 @@ async function submitTPMData() {
             body: JSON.stringify(tpmData)
         });
         
-        // Save to local history (without base64 photo to save space)
         let tpmHistory = JSON.parse(localStorage.getItem('tpm_history') || '[]');
         tpmHistory.push({
             ...tpmData,
@@ -1215,7 +1140,6 @@ async function submitTPMData() {
         
         showCustomAlert(`✓ Data TPM ${activeTPMArea} berhasil disimpan!`, 'success');
         
-        // Reset form
         currentTPMPhoto = null;
         currentTPMStatus = '';
         
@@ -1226,12 +1150,368 @@ async function submitTPMData() {
     } catch (error) {
         console.error('TPM Error:', error);
         
-        // Save offline for retry
         let offlineTPM = JSON.parse(localStorage.getItem('tpm_offline') || '[]');
         offlineTPM.push(tpmData);
         localStorage.setItem('tpm_offline', JSON.stringify(offlineTPM));
         
         showCustomAlert('Gagal mengupload. Data disimpan lokal untuk diupload nanti.', 'error');
+    } finally {
+        if (loader) loader.style.display = 'none';
+    }
+}
+
+// ============================================
+// BALANCING FUNCTIONS (INPUT BALANCING)
+// ============================================
+
+function initBalancingScreen() {
+    if (!requireAuth()) return;
+    
+    const balancingUser = document.getElementById('balancingUser');
+    if (balancingUser && currentUser) balancingUser.textContent = currentUser.name;
+    
+    const now = new Date();
+    const dateInput = document.getElementById('balancingDate');
+    const timeInput = document.getElementById('balancingTime');
+    
+    if (dateInput) {
+        dateInput.value = now.toISOString().split('T')[0];
+    }
+    if (timeInput) {
+        timeInput.value = now.toTimeString().slice(0, 5);
+    }
+    
+    detectShift();
+    setDefaultBalancingValues();
+    calculateTotal3B();
+    calculateLPBalance();
+}
+
+function detectShift() {
+    const hour = new Date().getHours();
+    let shift = 3;
+    let shiftText = "Shift 3 (23:00 - 07:00)";
+    
+    if (hour >= 7 && hour < 15) {
+        shift = 1;
+        shiftText = "Shift 1 (07:00 - 15:00)";
+    } else if (hour >= 15 && hour < 23) {
+        shift = 2;
+        shiftText = "Shift 2 (15:00 - 23:00)";
+    }
+    
+    currentShift = shift;
+    
+    const badge = document.getElementById('currentShiftBadge');
+    const info = document.getElementById('balancingShiftInfo');
+    const kegiatanNum = document.getElementById('kegiatanShiftNum');
+    
+    if (badge) badge.textContent = `SHIFT ${shift}`;
+    if (info) info.textContent = `${shiftText} • Auto Update`;
+    if (kegiatanNum) kegiatanNum.textContent = shift;
+    
+    if (badge) {
+        if (shift === 1) badge.style.background = 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)';
+        else if (shift === 2) badge.style.background = 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)';
+        else badge.style.background = 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
+    }
+}
+
+function setDefaultBalancingValues() {
+    const defaults = {
+        'hvs65Current': '1',
+        'puri2Steam': '1.4',
+        'deaeratorSteam': '2.5',
+        'dumpCondenser': '5.0',
+        'pcv6105': '0.0',
+        'ctSuFan': '4',
+        'ctSuPompa': '2',
+        'ctSaFan': '3',
+        'ctSaPompa': '2'
+    };
+    
+    Object.entries(defaults).forEach(([id, value]) => {
+        const el = document.getElementById(id);
+        if (el && !el.value) el.value = value;
+    });
+}
+
+function handleEksporInput(input) {
+    const label = document.getElementById('eksporLabel');
+    const hint = document.getElementById('eksporHint');
+    let value = parseFloat(input.value);
+    
+    if (isNaN(value) || input.value === '') {
+        if (label) {
+            label.textContent = 'Ekspor/Impor (MW)';
+            label.style.color = '#94a3b8';
+        }
+        if (hint) {
+            hint.innerHTML = '💡 <strong>Minus (-) = Ekspor</strong> ke Grid | <strong>Plus (+) = Impor</strong> dari Grid';
+            hint.style.color = '#94a3b8';
+        }
+        input.style.borderColor = 'rgba(148, 163, 184, 0.2)';
+        input.style.background = 'rgba(15, 23, 42, 0.6)';
+        input.setAttribute('data-state', '');
+        return;
+    }
+    
+    if (value < 0) {
+        if (label) {
+            label.textContent = 'Ekspor (MW)';
+            label.style.color = '#10b981';
+        }
+        if (hint) {
+            hint.innerHTML = '✓ Posisi: <strong>Ekspor ke Grid</strong> (Nilai negatif)';
+            hint.style.color = '#10b981';
+        }
+        input.style.borderColor = '#10b981';
+        input.style.background = 'rgba(16, 185, 129, 0.05)';
+        input.setAttribute('data-state', 'ekspor');
+        
+    } else if (value > 0) {
+        if (label) {
+            label.textContent = 'Impor (MW)';
+            label.style.color = '#f59e0b';
+        }
+        if (hint) {
+            hint.innerHTML = '✓ Posisi: <strong>Impor dari Grid</strong> (Nilai positif)';
+            hint.style.color = '#f59e0b';
+        }
+        input.style.borderColor = '#f59e0b';
+        input.style.background = 'rgba(245, 158, 11, 0.05)';
+        input.setAttribute('data-state', 'impor');
+        
+    } else {
+        if (label) {
+            label.textContent = 'Ekspor/Impor (MW)';
+            label.style.color = '#94a3b8';
+        }
+        if (hint) {
+            hint.innerHTML = '⚪ Posisi: <strong>Netral</strong> (Nilai 0)';
+            hint.style.color = '#64748b';
+        }
+        input.style.borderColor = 'rgba(148, 163, 184, 0.2)';
+        input.style.background = 'rgba(15, 23, 42, 0.6)';
+        input.setAttribute('data-state', '');
+    }
+}
+
+function getEksporImporValue() {
+    const input = document.getElementById('eksporMW');
+    if (!input || !input.value) return 0;
+    
+    const value = parseFloat(input.value);
+    if (isNaN(value)) return 0;
+    
+    return value;
+}
+
+function toggleSS2000Detail() {
+    const detail = document.getElementById('ss2000Detail');
+    if (detail) {
+        detail.style.display = 'block';
+        detail.style.opacity = '0';
+        setTimeout(() => {
+            detail.style.transition = 'opacity 0.3s';
+            detail.style.opacity = '1';
+        }, 10);
+    }
+}
+
+function calculateTotal3B() {
+    const ss6500 = parseFloat(document.getElementById('ss6500MW')?.value) || 0;
+    const activePower = parseFloat(document.getElementById('activePowerMW')?.value) || 0;
+    const hvs65 = parseFloat(document.getElementById('hvs65l02MW')?.value) || 0;
+    
+    const total = ss6500 + activePower + hvs65;
+    
+    const totalInput = document.getElementById('total3BMW');
+    if (totalInput) {
+        totalInput.value = total.toFixed(3);
+        totalInput.style.animation = 'none';
+        setTimeout(() => {
+            totalInput.style.animation = 'pulse 0.5s';
+        }, 10);
+    }
+    
+    return total;
+}
+
+function calculateLPBalance() {
+    const produksi = parseFloat(document.getElementById('fq1105')?.value) || 0;
+    
+    const konsumsiItems = [
+        'stgSteam', 'pa2Steam', 'puri2Steam', 'deaeratorSteam',
+        'dumpCondenser', 'pcv6105'
+    ];
+    
+    let totalKonsumsi = 0;
+    konsumsiItems.forEach(id => {
+        totalKonsumsi += parseFloat(document.getElementById(id)?.value) || 0;
+    });
+    
+    totalKonsumsi += parseFloat(document.getElementById('melterSA2')?.value) || 0;
+    totalKonsumsi += parseFloat(document.getElementById('ejectorSteam')?.value) || 0;
+    totalKonsumsi += parseFloat(document.getElementById('glandSealSteam')?.value) || 0;
+    
+    const totalDisplay = document.getElementById('totalKonsumsiSteam');
+    if (totalDisplay) {
+        totalDisplay.textContent = totalKonsumsi.toFixed(1) + ' t/h';
+    }
+    
+    const balance = produksi - totalKonsumsi;
+    
+    const balanceField = document.getElementById('lpBalanceField');
+    const balanceLabel = document.getElementById('lpBalanceLabel');
+    const balanceInput = document.getElementById('lpBalanceValue');
+    const balanceStatus = document.getElementById('lpBalanceStatus');
+    
+    if (balanceInput) balanceInput.value = Math.abs(balance).toFixed(1);
+    
+    if (balance < 0) {
+        if (balanceLabel) balanceLabel.textContent = 'LPS Impor dari SU 3A (t/h)';
+        if (balanceStatus) {
+            balanceStatus.textContent = 'Posisi: Impor dari 3A (Produksi < Konsumsi)';
+            balanceStatus.style.color = '#f59e0b';
+        }
+        if (balanceInput) {
+            balanceInput.style.borderColor = '#f59e0b';
+            balanceInput.style.color = '#f59e0b';
+            balanceInput.style.background = 'rgba(245, 158, 11, 0.1)';
+        }
+        if (balanceField) {
+            balanceField.style.borderColor = 'rgba(245, 158, 11, 0.3)';
+            balanceField.style.background = 'rgba(245, 158, 11, 0.05)';
+        }
+    } else {
+        if (balanceLabel) balanceLabel.textContent = 'LPS Ekspor ke SU 3A (t/h)';
+        if (balanceStatus) {
+            balanceStatus.textContent = 'Posisi: Ekspor ke 3A (Produksi > Konsumsi)';
+            balanceStatus.style.color = '#10b981';
+        }
+        if (balanceInput) {
+            balanceInput.style.borderColor = '#10b981';
+            balanceInput.style.color = '#10b981';
+            balanceInput.style.background = 'rgba(16, 185, 129, 0.1)';
+        }
+        if (balanceField) {
+            balanceField.style.borderColor = 'rgba(16, 185, 129, 0.3)';
+            balanceField.style.background = 'rgba(16, 185, 129, 0.05)';
+        }
+    }
+    
+    return balance;
+}
+
+async function submitBalancingData() {
+    if (!requireAuth()) return;
+    
+    const requiredFields = ['loadMW', 'fq1105', 'stgSteam'];
+    for (let id of requiredFields) {
+        const el = document.getElementById(id);
+        if (!el || !el.value) {
+            showCustomAlert(`Field ${id} wajib diisi!`, 'error');
+            if (el) el.focus();
+            return;
+        }
+    }
+    
+    const loader = document.getElementById('loader');
+    const loaderText = document.querySelector('.loader-text h3');
+    if (loader) loader.style.display = 'flex';
+    if (loaderText) loaderText.textContent = 'Mengirim Data Balancing...';
+    
+    const eksporValue = getEksporImporValue();
+    const lpBalance = calculateLPBalance();
+    
+    const balancingData = {
+        type: 'BALANCING',
+        Operator: currentUser ? currentUser.name : 'Unknown',
+        Timestamp: new Date().toISOString(),
+        
+        Tanggal: document.getElementById('balancingDate')?.value || '',
+        Jam: document.getElementById('balancingTime')?.value || '',
+        Shift: currentShift,
+        
+        'Load_MW': parseFloat(document.getElementById('loadMW')?.value) || 0,
+        'Ekspor_Impor_MW': eksporValue,
+        'Ekspor_Impor_Status': eksporValue > 0 ? 'Impor' : (eksporValue < 0 ? 'Ekspor' : 'Netral'),
+        
+        'PLN_MW': parseFloat(document.getElementById('plnMW')?.value) || 0,
+        'UBB_MW': parseFloat(document.getElementById('ubbMW')?.value) || 0,
+        'PIE_MW': parseFloat(document.getElementById('pieMW')?.value) || 0,
+        'TG65_MW': parseFloat(document.getElementById('tg65MW')?.value) || 0,
+        'TG66_MW': parseFloat(document.getElementById('tg66MW')?.value) || 0,
+        'GTG_MW': parseFloat(document.getElementById('gtgMW')?.value) || 0,
+        
+        'SS6500_MW': parseFloat(document.getElementById('ss6500MW')?.value) || 0,
+        'SS2000_Via': document.getElementById('ss2000Via')?.value || 'TR-Main01',
+        'Active_Power_MW': parseFloat(document.getElementById('activePowerMW')?.value) || 0,
+        'Reactive_Power_MVAR': parseFloat(document.getElementById('reactivePowerMVAR')?.value) || 0,
+        'Current_S_A': parseFloat(document.getElementById('currentS')?.value) || 0,
+        'Voltage_V': parseFloat(document.getElementById('voltageV')?.value) || 0,
+        'HVS65_L02_MW': parseFloat(document.getElementById('hvs65l02MW')?.value) || 0,
+        'Total_3B_MW': parseFloat(document.getElementById('total3BMW')?.value) || 0,
+        
+        'Produksi_Steam_SA_t/h': parseFloat(document.getElementById('fq1105')?.value) || 0,
+        'STG_Steam_t/h': parseFloat(document.getElementById('stgSteam')?.value) || 0,
+        'PA2_Steam_t/h': parseFloat(document.getElementById('pa2Steam')?.value) || 0,
+        'Puri2_Steam_t/h': parseFloat(document.getElementById('puri2Steam')?.value) || 0,
+        'Melter_SA2_t/h': parseFloat(document.getElementById('melterSA2')?.value) || 0,
+        'Ejector_t/h': parseFloat(document.getElementById('ejectorSteam')?.value) || 0,
+        'Gland_Seal_t/h': parseFloat(document.getElementById('glandSealSteam')?.value) || 0,
+        'Deaerator_t/h': parseFloat(document.getElementById('deaeratorSteam')?.value) || 0,
+        'Dump_Condenser_t/h': parseFloat(document.getElementById('dumpCondenser')?.value) || 0,
+        'PCV6105_t/h': parseFloat(document.getElementById('pcv6105')?.value) || 0,
+        'Total_Konsumsi_Steam_t/h': parseFloat(document.getElementById('totalKonsumsiSteam')?.textContent) || 0,
+        'LPS_Balance_t/h': Math.abs(lpBalance),
+        'LPS_Balance_Status': lpBalance < 0 ? 'Impor dari 3A' : 'Ekspor ke 3A',
+        
+        'PI6122_kg/cm2': parseFloat(document.getElementById('pi6122')?.value) || 0,
+        'TI6112_C': parseFloat(document.getElementById('ti6112')?.value) || 0,
+        'TI6146_C': parseFloat(document.getElementById('ti6146')?.value) || 0,
+        'TI6126_C': parseFloat(document.getElementById('ti6126')?.value) || 0,
+        'Axial_Displacement_mm': parseFloat(document.getElementById('axialDisplacement')?.value) || 0,
+        'VI6102_μm': parseFloat(document.getElementById('vi6102')?.value) || 0,
+        'TE6134_C': parseFloat(document.getElementById('te6134')?.value) || 0,
+        'CT_SU_Fan': parseInt(document.getElementById('ctSuFan')?.value) || 0,
+        'CT_SU_Pompa': parseInt(document.getElementById('ctSuPompa')?.value) || 0,
+        'CT_SA_Fan': parseInt(document.getElementById('ctSaFan')?.value) || 0,
+        'CT_SA_Pompa': parseInt(document.getElementById('ctSaPompa')?.value) || 0,
+        
+        'Kegiatan_Shift': document.getElementById('kegiatanShift')?.value || ''
+    };
+    
+    try {
+        await fetch(GAS_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(balancingData)
+        });
+        
+        showCustomAlert('✓ Data Balancing berhasil dikirim!', 'success');
+        
+        let balancingHistory = JSON.parse(localStorage.getItem('balancing_history') || '[]');
+        balancingHistory.push({
+            ...balancingData,
+            submittedAt: new Date().toISOString()
+        });
+        localStorage.setItem('balancing_history', JSON.stringify(balancingHistory));
+        
+        setTimeout(() => {
+            navigateTo('homeScreen');
+        }, 2000);
+        
+    } catch (error) {
+        console.error('Balancing Error:', error);
+        
+        let offlineBalancing = JSON.parse(localStorage.getItem('balancing_offline') || '[]');
+        offlineBalancing.push(balancingData);
+        localStorage.setItem('balancing_offline', JSON.stringify(offlineBalancing));
+        
+        showCustomAlert('Gagal mengirim. Data disimpan lokal.', 'error');
     } finally {
         if (loader) loader.style.display = 'none';
     }
