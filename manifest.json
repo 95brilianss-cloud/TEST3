@@ -1,107 +1,59 @@
 {
   "name": "Turbine Logsheet Pro",
   "short_name": "Turbine Log",
-  "description": "Aplikasi Logsheet Digital untuk Unit Turbin",
   "start_url": "./index.html",
   "display": "standalone",
-  "display_override": ["fullscreen", "minimal-ui"],
-  "orientation": "portrait",
   "background_color": "#0f172a",
   "theme_color": "#0f172a",
-  "categories": ["utilities", "productivity", "business"],
-  "lang": "id",
-  "dir": "ltr",
-  "scope": "./",
-  "id": "turbine-logsheet-pro-pwa",
   
   "icons": [
     {
       "src": "icon-72x72.png",
       "sizes": "72x72",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "icon-96x96.png",
       "sizes": "96x96",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "icon-128x128.png",
       "sizes": "128x128",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "icon-144x144.png",
       "sizes": "144x144",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "icon-152x152.png",
       "sizes": "152x152",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "icon-192x192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "icon-384x384.png",
       "sizes": "384x384",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "icon-512x512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     }
-  ],
-  
-  "shortcuts": [
-    {
-      "name": "Input Balancing",
-      "short_name": "Balancing",
-      "description": "Buka form input balancing",
-      "url": "./index.html#balancing",
-      "icons": [{ "src": "icon-balancing.png", "sizes": "96x96" }]
-    },
-    {
-      "name": "Mulai Logsheet",
-      "short_name": "Logsheet",
-      "description": "Buka menu logsheet",
-      "url": "./index.html#logsheet",
-      "icons": [{ "src": "icon-logsheet.png", "sizes": "96x96" }]
-    }
-  ],
-  
-  "screenshots": [
-    {
-      "src": "screenshot-1.png",
-      "sizes": "1080x1920",
-      "type": "image/png",
-      "form_factor": "narrow",
-      "label": "Menu Utama"
-    },
-    {
-      "src": "screenshot-2.png",
-      "sizes": "1080x1920",
-      "type": "image/png",
-      "form_factor": "narrow",
-      "label": "Input Balancing"
-    }
-  ],
-  
-  "edge_side_panel": {
-    "preferred_width": 400
-  },
-  
-  "handle_links": "preferred"
+  ]
 }
