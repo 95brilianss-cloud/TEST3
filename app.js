@@ -1,7 +1,7 @@
 // ============================================
 // TURBINE LOGSHEET PRO - VERSION CONTROL
 // ============================================
-const APP_VERSION = '1.1.9'; // Updated with Balancing feature
+const APP_VERSION = '1.2.0'; // Updated with Balancing feature
 
 // ============================================
 // AUTHENTICATION SYSTEM
@@ -418,28 +418,24 @@ let currentShift = 3;
 // ============================================
 
 function formatWhatsAppMessage(data) {
-    // Format angka Indonesia tanpa trailing zeros (12.00 -> 12, 12.50 -> 12,5)
+    // Format angka Indonesia tanpa trailing zeros (12.00 -> 12)
     const formatNum = (num, maxDecimals = 2) => {
         if (num === undefined || num === null || num === '' || isNaN(num)) return '-';
         const parsed = parseFloat(num);
         if (parsed === 0) return '0';
         
-        // Convert ke string dengan locale Indonesia
-        let formatted = parsed.toLocaleString('id-ID', {
+        return parsed.toLocaleString('id-ID', {
             minimumFractionDigits: 0,
             maximumFractionDigits: maxDecimals
         });
-        
-        return formatted;
     };
     
-    // Format integer
     const formatInt = (num) => {
         if (num === undefined || num === null || num === '' || isNaN(num)) return '-';
         return parseInt(num).toLocaleString('id-ID');
     };
     
-    // Format tanggal Indonesia
+    // Format tanggal
     const tglParts = data.Tanggal.split('-');
     const bulanIndo = {
         '01': 'Januari', '02': 'Februari', '03': 'Maret', '04': 'April',
@@ -471,38 +467,38 @@ function formatWhatsAppMessage(data) {
     message += `  ⠂ Reactive power = ${formatNum(data.Reactive_Power_MVAR, 3)} MVAR\n`;
     message += `  ⠂ Current S = ${formatNum(data.Current_S_A, 1)} A\n`;
     message += `  ⠂ Voltage = ${formatInt(data.Voltage_V)} V\n`;
-    message += `  ⠂ (HVS65 L02) = ${formatNum(data.HVS65_L02_MW, 3)} MW (${formatInt(data.HVS65_L02_Current_A || 0)} A)\n`;
+    message += `  ⠂ (HVS65 L02) = ${formatNum(data.HVS65_L02_MW, 3)} MW (${formatInt(data.HVS65_L02_Current_A)} A)\n`;
     message += `● Total 3B = ${formatNum(data.Total_3B_MW, 3)}MW\n\n`;
     
     message += `*Produksi Steam SA*\n`;
     message += `⠂ FQ-1105 = ${formatNum(data['Produksi_Steam_SA_t/h'], 1)} t/h\n\n`;
     
     message += `*Konsumsi Steam 3B*\n`;
-    // Perbaikan nama variabel sesuai data yang dikirim
-    message += `⠂ STG 17,5 = ${formatNum(data.STG_Steam_t_h || data.STG_Steam, 1)} t/h\n`;
-    message += `⠂ PA2 = ${formatNum(data.PA2_Steam_t_h || data.PA2_Steam, 1)} t/h\n`;
-    message += `⠂ Puri2 = ${formatNum(data.Puri2_Steam_t_h || data.Puri2_Steam, 1)} t/h\n`;
-    message += `⠂ Melter SA2 = ${formatNum(data.Melter_SA2_t_h || data.Melter_SA2, 1)} t/h\n`;
-    message += `⠂ Ejector = ${formatNum(data.Ejector_t_h || data.Ejector, 1)} t/h\n`;
-    message += `⠂ Gland Seal = ${formatNum(data.Gland_Seal_t_h || data.Gland_Seal, 1)} t/h\n`;
-    message += `⠂ Deaerator = ${formatNum(data.Deaerator_t_h || data.Deaerator, 1)} t/h\n`;
-    message += `⠂ Dump Condenser = ${formatNum(data.Dump_Condenser_t_h || data.Dump_Condenser, 1)} t/h\n`;
-    message += `⠂ PCV-6105 = ${formatNum(data.PCV6105_t_h || data.PCV6105, 1)} t/h\n`;
+    // PERBAIKAN: Gunakan exact field name dengan bracket notation
+    message += `⠂ STG 17,5 = ${formatNum(data['STG_Steam_t/h'], 1)} t/h\n`;
+    message += `⠂ PA2 = ${formatNum(data['PA2_Steam_t/h'], 1)} t/h\n`;
+    message += `⠂ Puri2 = ${formatNum(data['Puri2_Steam_t/h'], 1)} t/h\n`;
+    message += `⠂ Melter SA2 = ${formatNum(data['Melter_SA2_t/h'], 1)} t/h\n`;
+    message += `⠂ Ejector = ${formatNum(data['Ejector_t/h'], 1)} t/h\n`;
+    message += `⠂ Gland Seal = ${formatNum(data['Gland_Seal_t/h'], 1)} t/h\n`;
+    message += `⠂ Deaerator = ${formatNum(data['Deaerator_t/h'], 1)} t/h\n`;
+    message += `⠂ Dump Condenser = ${formatNum(data['Dump_Condenser_t/h'], 1)} t/h\n`;
+    message += `⠂ PCV-6105 = ${formatNum(data['PCV6105_t/h'], 1)} t/h\n`;
     message += `*⠂ Total Konsumsi* = ${formatNum(data['Total_Konsumsi_Steam_t/h'], 1)} t/h\n\n`;
     
-    // HAPUS EMOJI DI SINI (yang tadi ${lpsEmoji})
+    // TANPA EMOJI
     message += `*${data.LPS_Balance_Status}* = ${formatNum(data['LPS_Balance_t/h'], 1)} t/h\n\n`;
     
     message += `*Monitoring*\n`;
-    // Perbaikan nama variabel untuk monitoring
-    message += `⠂ Steam Extraction PI-6122 = ${formatNum(data.PI6122_kg_cm2 || data.pi6122, 2)} kg/cm² & TI-6112 = ${formatNum(data.TI6112_C || data.ti6112, 1)} °C\n`;
-    message += `⠂ Temp. Cooling Air Inlet (TI-6146/47) = ${formatNum(data.TI6146_C || data.ti6146, 2)} °C\n`;
-    message += `⠂ Temp. Lube Oil (TI-6126) = ${formatNum(data.TI6126_C || data.ti6126, 2)} °C\n`;
-    message += `⠂ Axial Displacement = ${formatNum(data.Axial_Displacement_mm || data.axialDisplacement, 2)} mm (High : 0,6 mm)\n`;
-    message += `⠂ Vibrasi VI-6102 = ${formatNum(data.VI6102_μm || data.vi6102, 2)} μm (High : 85 μm)\n`;
-    message += `⠂ Temp. Journal Bearing TE-6134 = ${formatNum(data.TE6134_C || data.te6134, 1)} °C (High : 115 °C)\n`;
-    message += `⠂ CT SU = Fan : ${formatInt(data.CT_SU_Fan || data.ctSuFan)} & Pompa : ${formatInt(data.CT_SU_Pompa || data.ctSuPompa)}\n`;
-    message += `⠂ CT SA = Fan : ${formatInt(data.CT_SA_Fan || data.ctSaFan)} & Pompa : ${formatInt(data.CT_SA_Pompa || data.ctSaPompa)}\n\n`;
+    // Exact match dengan nama field di submitBalancingData
+    message += `⠂ Steam Extraction PI-6122 = ${formatNum(data['PI6122_kg/cm2'], 2)} kg/cm² & TI-6112 = ${formatNum(data['TI6112_C'], 1)} °C\n`;
+    message += `⠂ Temp. Cooling Air Inlet (TI-6146/47) = ${formatNum(data['TI6146_C'], 2)} °C\n`;
+    message += `⠂ Temp. Lube Oil (TI-6126) = ${formatNum(data['TI6126_C'], 2)} °C\n`;
+    message += `⠂ Axial Displacement = ${formatNum(data['Axial_Displacement_mm'], 2)} mm (High : 0,6 mm)\n`;
+    message += `⠂ Vibrasi VI-6102 = ${formatNum(data['VI6102_μm'], 2)} μm (High : 85 μm)\n`;
+    message += `⠂ Temp. Journal Bearing TE-6134 = ${formatNum(data['TE6134_C'], 1)} °C (High : 115 °C)\n`;
+    message += `⠂ CT SU = Fan : ${formatInt(data['CT_SU_Fan'])} & Pompa : ${formatInt(data['CT_SU_Pompa'])}\n`;
+    message += `⠂ CT SA = Fan : ${formatInt(data['CT_SA_Fan'])} & Pompa : ${formatInt(data['CT_SA_Pompa'])}\n\n`;
     
     message += `*Kegiatan Shift ${data.Shift}*\n`;
     message += data.Kegiatan_Shift || '-';
