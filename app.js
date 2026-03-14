@@ -1,7 +1,7 @@
 // ============================================
 // TURBINE LOGSHEET PRO - VERSION CONTROL
 // ============================================
-const APP_VERSION = '1.2.1'; // Updated with Balancing Draft Feature
+const APP_VERSION = '1.2.2'; // Updated with Balancing Draft Feature
 
 // ============================================
 // CONFIGURATION & CONSTANTS
