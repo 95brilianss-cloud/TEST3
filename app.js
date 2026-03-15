@@ -1,7 +1,7 @@
 // ============================================
 // TURBINE LOGSHEET PRO - VERSION CONTROL
 // ============================================
-const APP_VERSION = '1.2.6'; 
+const APP_VERSION = '1.2.7'; 
 
 // ============================================
 // CONFIGURATION & CONSTANTS
@@ -409,7 +409,7 @@ function loadUserStats() {
     let completedAreas = 0;
     
     Object.entries(AREAS).forEach(([areaName, params]) => {
-        const filled = currentInput[areaName] ? Object.keys(currentInput[areaName]).filter(k => !k.endsWith('_STATUS') && !k.endsWith('_NOTE')).length : 0;
+        const filled = currentInput[areaName] ? Object.keys(currentInput[areaName]).length : 0;
         if (filled === params.length && filled > 0) completedAreas++;
     });
     
@@ -648,15 +648,16 @@ function renderMenu() {
     
     Object.entries(AREAS).forEach(([areaName, params]) => {
         const areaData = currentInput[areaName] || {};
-        const filled = Object.keys(areaData).filter(k => !k.endsWith('_STATUS') && !k.endsWith('_NOTE')).length;
+        const filled = Object.keys(areaData).length;
         const total = params.length;
         const percent = Math.round((filled / total) * 100);
         const isCompleted = filled === total && total > 0;
         
-        // Check for abnormal statuses
-        const hasAbnormal = params.some((_, idx) => {
-            const paramName = AREAS[areaName][idx];
-            return areaData[paramName + '_STATUS'];
+        // Check for abnormal statuses - cek apakah value mengandung ERROR, UPPER, atau NOT_INSTALLED
+        const hasAbnormal = params.some(paramName => {
+            const val = areaData[paramName] || '';
+            const firstLine = val.split('\n')[0];
+            return ['ERROR', 'UPPER', 'NOT_INSTALLED'].includes(firstLine);
         });
         
         if (isCompleted) completedAreas++;
@@ -677,10 +678,12 @@ function renderMenu() {
                 </div>
                 <div class="area-info">
                     <div class="area-name">${areaName}</div>
-                    <div class="area-meta">${filled} dari ${total} parameter diisi</div>
+                    <div class="area-meta ${hasAbnormal ? 'warning' : ''}">
+                        ${hasAbnormal ? '⚠️ Ada parameter bermasalah • ' : ''}${filled} dari ${total} parameter
+                    </div>
                 </div>
                 <div class="area-status">
-                    ${hasAbnormal ? '<span style="color: #ef4444; margin-right: 4px;">⚠️</span>' : ''}
+                    ${hasAbnormal ? '<span style="color: #ef4444; margin-right: 4px;">!</span>' : ''}
                     ${isCompleted ? '✓' : '❯'}
                 </div>
             </div>
@@ -700,7 +703,7 @@ function updateOverallProgress() {
     const totalAreas = Object.keys(AREAS).length;
     let completedAreas = 0;
     Object.entries(AREAS).forEach(([areaName, params]) => {
-        const filled = currentInput[areaName] ? Object.keys(currentInput[areaName]).filter(k => !k.endsWith('_STATUS') && !k.endsWith('_NOTE')).length : 0;
+        const filled = currentInput[areaName] ? Object.keys(currentInput[areaName]).length : 0;
         if (filled === params.length && filled > 0) completedAreas++;
     });
     updateOverallProgressUI(completedAreas, totalAreas);
@@ -734,32 +737,52 @@ function renderProgressDots() {
     if (!container) return;
     const total = AREAS[activeArea].length;
     let html = '';
+    
     for (let i = 0; i < total; i++) {
         const fullLabel = AREAS[activeArea][i];
-        const isFilled = currentInput[activeArea] && currentInput[activeArea][fullLabel];
-        const hasStatus = currentInput[activeArea] && currentInput[activeArea][fullLabel + '_STATUS'];
+        const savedValue = currentInput[activeArea]?.[fullLabel] || '';
+        const lines = savedValue.split('\n');
+        const firstLine = lines[0];
+        
+        const isFilled = savedValue !== '';
+        const hasIssue = ['ERROR', 'UPPER', 'NOT_INSTALLED'].includes(firstLine);
         const isActive = i === activeIdx;
+        
         let className = '';
         if (isActive) className = 'active';
-        else if (hasStatus) className = 'has-issue';
+        else if (hasIssue) className = 'has-issue';
         else if (isFilled) className = 'filled';
         
-        html += `<div class="progress-dot ${className}" onclick="jumpToStep(${i})" title="${hasStatus ? 'Ada masalah' : ''}"></div>`;
+        html += `<div class="progress-dot ${className}" onclick="jumpToStep(${i})" title="${hasIssue ? firstLine : ''}"></div>`;
     }
     container.innerHTML = html;
 }
 
 function jumpToStep(index) {
+    // Simpan data saat ini sebelum pindah
+    const fullLabel = AREAS[activeArea][activeIdx];
     const input = document.getElementById('valInput');
-    if (input) {
-        const currentVal = input.value.trim();
-        if (currentVal && currentVal !== '-') {
-            const fullLabel = AREAS[activeArea][activeIdx];
-            if (!currentInput[activeArea]) currentInput[activeArea] = {};
-            currentInput[activeArea][fullLabel] = currentVal;
-            localStorage.setItem(DRAFT_KEYS.LOGSHEET, JSON.stringify(currentInput));
+    
+    if (input && input.value.trim()) {
+        if (!currentInput[activeArea]) currentInput[activeArea] = {};
+        
+        // Cek apakah ada status abnormal
+        const checkedStatus = document.querySelector('input[name="paramStatus"]:checked');
+        const note = document.getElementById('statusNote')?.value || '';
+        let valueToSave = input.value.trim();
+        
+        if (checkedStatus) {
+            if (note) {
+                valueToSave = `${checkedStatus.value}\n${note}`;
+            } else {
+                valueToSave = checkedStatus.value;
+            }
         }
+        
+        currentInput[activeArea][fullLabel] = valueToSave;
+        localStorage.setItem(DRAFT_KEYS.LOGSHEET, JSON.stringify(currentInput));
     }
+    
     activeIdx = index;
     showStep();
     renderProgressDots();
@@ -790,13 +813,14 @@ function getParamName(label) {
 }
 
 // ============================================
-// ABNORMAL STATUS FUNCTIONS
+// ABNORMAL STATUS FUNCTIONS - STACK IN SAME CELL
 // ============================================
 
 function handleStatusChange(checkbox) {
     const chip = checkbox.closest('.status-chip');
     const noteContainer = document.getElementById('statusNoteContainer');
     const fullLabel = AREAS[activeArea][activeIdx];
+    const valInput = document.getElementById('valInput');
     
     // Uncheck others (single select)
     document.querySelectorAll('input[name="paramStatus"]').forEach(cb => {
@@ -817,14 +841,18 @@ function handleStatusChange(checkbox) {
             if (noteInput) noteInput.focus();
         }, 100);
         
-        // Jika TIDAK TERPASANG, kosongkan input nilai
+        // Jika TIDAK TERPASANG, set nilai ke '-' dan disable input
         if (checkbox.value === 'NOT_INSTALLED') {
-            const valInput = document.getElementById('valInput');
             if (valInput) {
                 valInput.value = '-';
                 valInput.disabled = true;
                 valInput.style.opacity = '0.5';
                 valInput.style.background = 'rgba(100, 116, 139, 0.2)';
+            }
+        } else {
+            // ERROR atau UPPER, kosongkan input nilai jika belum diisi
+            if (valInput && valInput.value === '') {
+                // Biarkan kosong atau isi 0 tergantung kebutuhan
             }
         }
     } else {
@@ -834,7 +862,6 @@ function handleStatusChange(checkbox) {
         if (noteInput) noteInput.value = '';
         
         // Enable kembali input nilai
-        const valInput = document.getElementById('valInput');
         if (valInput) {
             valInput.value = '';
             valInput.disabled = false;
@@ -850,25 +877,34 @@ function handleStatusChange(checkbox) {
 
 function saveCurrentStatusToDraft() {
     const fullLabel = AREAS[activeArea][activeIdx];
+    const input = document.getElementById('valInput');
     const checkedStatus = document.querySelector('input[name="paramStatus"]:checked');
     const note = document.getElementById('statusNote')?.value || '';
     
     if (!currentInput[activeArea]) currentInput[activeArea] = {};
     
+    let valueToSave = '';
+    if (input && input.value.trim()) {
+        valueToSave = input.value.trim();
+    }
+    
+    // Format: Jika ada status, gabungkan dengan newline
     if (checkedStatus) {
-        currentInput[activeArea][fullLabel + '_STATUS'] = checkedStatus.value;
         if (note) {
-            currentInput[activeArea][fullLabel + '_NOTE'] = note;
+            valueToSave = `${checkedStatus.value}\n${note}`;
         } else {
-            delete currentInput[activeArea][fullLabel + '_NOTE'];
+            valueToSave = checkedStatus.value;
         }
+    }
+    
+    if (valueToSave) {
+        currentInput[activeArea][fullLabel] = valueToSave;
     } else {
-        delete currentInput[activeArea][fullLabel + '_STATUS'];
-        delete currentInput[activeArea][fullLabel + '_NOTE'];
+        delete currentInput[activeArea][fullLabel];
     }
     
     localStorage.setItem(DRAFT_KEYS.LOGSHEET, JSON.stringify(currentInput));
-    updateProgressDots();
+    renderProgressDots();
 }
 
 function loadAbnormalStatus(fullLabel) {
@@ -883,36 +919,50 @@ function loadAbnormalStatus(fullLabel) {
     if (noteContainer) noteContainer.style.display = 'none';
     if (noteInput) noteInput.value = '';
     
-    // Enable input nilai
+    // Enable input nilai default
     const valInput = document.getElementById('valInput');
     if (valInput) {
         valInput.disabled = false;
         valInput.style.opacity = '1';
         valInput.style.background = '';
+        valInput.value = '';
     }
     
     // Load dari draft jika ada
-    if (currentInput[activeArea] && currentInput[activeArea][fullLabel + '_STATUS']) {
-        const savedStatus = currentInput[activeArea][fullLabel + '_STATUS'];
-        const checkbox = document.querySelector(`input[value="${savedStatus}"]`);
+    if (currentInput[activeArea] && currentInput[activeArea][fullLabel]) {
+        const savedValue = currentInput[activeArea][fullLabel];
+        const lines = savedValue.split('\n');
+        const firstLine = lines[0];
+        const secondLine = lines[1] || '';
         
-        if (checkbox) {
-            checkbox.checked = true;
-            checkbox.closest('.status-chip').classList.add('active');
-            if (noteContainer) noteContainer.style.display = 'block';
-            
-            const savedNote = currentInput[activeArea][fullLabel + '_NOTE'] || '';
-            if (noteInput) noteInput.value = savedNote;
-            
-            // Jika TIDAK TERPASANG, set input nilai ke '-' dan disable
-            if (savedStatus === 'NOT_INSTALLED') {
-                if (valInput) {
-                    valInput.value = '-';
-                    valInput.disabled = true;
-                    valInput.style.opacity = '0.5';
-                    valInput.style.background = 'rgba(100, 116, 139, 0.2)';
+        // Cek apakah baris pertama adalah status khusus
+        const isStatus = ['ERROR', 'UPPER', 'NOT_INSTALLED'].includes(firstLine);
+        
+        if (isStatus) {
+            // Centang checkbox yang sesuai
+            const checkbox = document.querySelector(`input[value="${firstLine}"]`);
+            if (checkbox) {
+                checkbox.checked = true;
+                checkbox.closest('.status-chip').classList.add('active');
+                if (noteContainer) noteContainer.style.display = 'block';
+                if (noteInput) noteInput.value = secondLine;
+                
+                // Jika NOT_INSTALLED, disable input nilai dan set '-'
+                if (firstLine === 'NOT_INSTALLED') {
+                    if (valInput) {
+                        valInput.value = '-';
+                        valInput.disabled = true;
+                        valInput.style.opacity = '0.5';
+                        valInput.style.background = 'rgba(100, 116, 139, 0.2)';
+                    }
+                } else {
+                    // ERROR atau UPPER, kosongkan input nilai (atau bisa diisi manual jika perlu)
+                    if (valInput) valInput.value = '';
                 }
             }
+        } else {
+            // Bukan status, adalah nilai normal
+            if (valInput) valInput.value = savedValue;
         }
     }
 }
@@ -939,17 +989,30 @@ function showStep() {
     if (labelInput) labelInput.textContent = getParamName(fullLabel);
     if (lastTimeLabel) lastTimeLabel.textContent = lastData._lastTime || '--:--';
     
-    // Check if previous value has status
+    // Check if previous value has status (from server)
     let prevVal = lastData[fullLabel] || '--';
-    if (prevVal !== '--' && lastData[fullLabel + '_STATUS']) {
-        const status = lastData[fullLabel + '_STATUS'];
-        prevVal += ` [${status}]`;
+    if (prevVal !== '--') {
+        const lines = prevVal.toString().split('\n');
+        const firstLine = lines[0];
+        if (['ERROR', 'UPPER', 'NOT_INSTALLED'].includes(firstLine)) {
+            prevVal = firstLine + (lines[1] ? ' - ' + lines[1] : '');
+        }
     }
     if (prevValDisplay) prevValDisplay.textContent = prevVal;
     
-    const currentValue = (currentInput[activeArea] && currentInput[activeArea][fullLabel]) || '';
-    
     if (inputType.type === 'select') {
+        // Ambil nilai tanpa status (line pertama jika ada newline)
+        let currentValue = (currentInput[activeArea] && currentInput[activeArea][fullLabel]) || '';
+        if (currentValue) {
+            const lines = currentValue.split('\n');
+            const firstLine = lines[0];
+            if (!['ERROR', 'UPPER', 'NOT_INSTALLED'].includes(firstLine)) {
+                currentValue = firstLine;
+            } else {
+                currentValue = ''; // Reset jika status, biarkan select kosong
+            }
+        }
+        
         let optionsHtml = `<option value="" disabled ${!currentValue ? 'selected' : ''}>Pilih Status...</option>`;
         inputType.options.forEach(opt => {
             const selected = currentValue === opt ? 'selected' : '';
@@ -971,6 +1034,19 @@ function showStep() {
         if (unitDisplay) unitDisplay.style.display = 'none';
         if (mainInputWrapper) mainInputWrapper.classList.add('has-select');
     } else {
+        let currentValue = (currentInput[activeArea] && currentInput[activeArea][fullLabel]) || '';
+        
+        // Parse jika ada newline (ambil line pertama sebagai value jika bukan status)
+        if (currentValue) {
+            const lines = currentValue.split('\n');
+            const firstLine = lines[0];
+            if (!['ERROR', 'UPPER', 'NOT_INSTALLED'].includes(firstLine)) {
+                currentValue = firstLine;
+            } else {
+                currentValue = ''; // Kosongkan jika status, akan dihandle oleh loadAbnormalStatus
+            }
+        }
+        
         if (inputFieldContainer) {
             inputFieldContainer.innerHTML = `<input type="text" id="valInput" inputmode="decimal" placeholder="0.00" value="${currentValue}" autocomplete="off">`;
         }
@@ -981,9 +1057,9 @@ function showStep() {
         if (mainInputWrapper) mainInputWrapper.classList.remove('has-select');
     }
     
-    // Load abnormal status
+    // Load abnormal status (setelah input dibuat)
     loadAbnormalStatus(fullLabel);
-    updateProgressDots();
+    renderProgressDots();
     
     setTimeout(() => {
         const input = document.getElementById('valInput');
@@ -1000,22 +1076,40 @@ function saveStep() {
     
     if (!currentInput[activeArea]) currentInput[activeArea] = {};
     
-    // Save value if exists
-    if (input && input.value.trim() && input.value !== '-') {
-        currentInput[activeArea][fullLabel] = input.value.trim();
+    // Get value
+    let valueToSave = '';
+    if (input && input.value.trim()) {
+        valueToSave = input.value.trim();
     }
     
-    // Save abnormal status
+    // Get abnormal status
     const checkedStatus = document.querySelector('input[name="paramStatus"]:checked');
+    const note = document.getElementById('statusNote')?.value || '';
+    
+    // Format: Jika ada status, gabungkan dengan newline
     if (checkedStatus) {
-        currentInput[activeArea][fullLabel + '_STATUS'] = checkedStatus.value;
-        const note = document.getElementById('statusNote')?.value || '';
-        if (note) {
-            currentInput[activeArea][fullLabel + '_NOTE'] = note;
+        // Jika NOT_INSTALLED, selalu simpan '-' sebagai nilai
+        if (checkedStatus.value === 'NOT_INSTALLED') {
+            valueToSave = 'NOT_INSTALLED';
+            if (note) valueToSave += '\n' + note;
+        } else {
+            // ERROR atau UPPER
+            if (note) {
+                valueToSave = `${checkedStatus.value}\n${note}`;
+            } else {
+                valueToSave = checkedStatus.value;
+            }
         }
     }
     
-    // Save to localStorage
+    // Save to currentInput
+    if (valueToSave) {
+        currentInput[activeArea][fullLabel] = valueToSave;
+    } else {
+        delete currentInput[activeArea][fullLabel];
+    }
+    
+    // Simpan ke localStorage
     localStorage.setItem(DRAFT_KEYS.LOGSHEET, JSON.stringify(currentInput));
     
     if (activeIdx < AREAS[activeArea].length - 1) {
@@ -1032,17 +1126,35 @@ function goBack() {
     const fullLabel = AREAS[activeArea][activeIdx];
     const input = document.getElementById('valInput');
     
+    if (!currentInput[activeArea]) currentInput[activeArea] = {};
+    
+    let valueToSave = '';
     if (input && input.value.trim()) {
-        if (!currentInput[activeArea]) currentInput[activeArea] = {};
-        currentInput[activeArea][fullLabel] = input.value.trim();
+        valueToSave = input.value.trim();
     }
     
+    // Get abnormal status
     const checkedStatus = document.querySelector('input[name="paramStatus"]:checked');
+    const note = document.getElementById('statusNote')?.value || '';
+    
+    // Format: Jika ada status, gabungkan dengan newline
     if (checkedStatus) {
-        if (!currentInput[activeArea]) currentInput[activeArea] = {};
-        currentInput[activeArea][fullLabel + '_STATUS'] = checkedStatus.value;
-        const note = document.getElementById('statusNote')?.value || '';
-        if (note) currentInput[activeArea][fullLabel + '_NOTE'] = note;
+        if (checkedStatus.value === 'NOT_INSTALLED') {
+            valueToSave = 'NOT_INSTALLED';
+            if (note) valueToSave += '\n' + note;
+        } else {
+            if (note) {
+                valueToSave = `${checkedStatus.value}\n${note}`;
+            } else {
+                valueToSave = checkedStatus.value;
+            }
+        }
+    }
+    
+    if (valueToSave) {
+        currentInput[activeArea][fullLabel] = valueToSave;
+    } else {
+        delete currentInput[activeArea][fullLabel];
     }
     
     localStorage.setItem(DRAFT_KEYS.LOGSHEET, JSON.stringify(currentInput));
@@ -1067,6 +1179,8 @@ async function sendToSheet() {
     let allParameters = {};
     Object.entries(currentInput).forEach(([areaName, params]) => {
         Object.entries(params).forEach(([paramName, value]) => {
+            // Value sudah dalam format: "NILAI" atau "ERROR\nnote" atau "UPPER\nnote" atau "NOT_INSTALLED\nnote"
+            // Langsung kirim saja, Google Sheets akan menampilkan multiline jika ada \n
             allParameters[paramName] = value;
         });
     });
@@ -1293,7 +1407,7 @@ async function submitTPMData() {
 }
 
 // ============================================
-// BALANCING FUNCTIONS (FINAL - TANPA PROTEKSI USER)
+// BALANCING FUNCTIONS
 // ============================================
 
 function saveBalancingDraft() {
@@ -1330,7 +1444,6 @@ function loadBalancingDraft() {
             return false;
         }
         
-        // Load semua field TANPA konfirmasi proteksi user
         let loadedCount = 0;
         BALANCING_FIELDS.forEach(fieldId => {
             const element = document.getElementById(fieldId);
@@ -1340,7 +1453,6 @@ function loadBalancingDraft() {
             }
         });
         
-        // Update UI khusus untuk ekspor/impor
         const eksporEl = document.getElementById('eksporMW');
         if (eksporEl && eksporEl.value) {
             handleEksporInput(eksporEl);
@@ -1606,21 +1718,14 @@ async function loadLastBalancingData(fromSpreadsheet = true) {
     }
 }
 
-// ============================================
-// RESET FORM - DIPERBAIKI (BENAR-BENAR BERSIH)
-// ============================================
 function resetBalancingForm() {
     if (!confirm('Yakin reset form? Semua data akan dikosongkan dan draft akan dihapus.')) {
         return;
     }
     
-    // 1. Hapus draft dari localStorage
     clearBalancingDraft();
-    
-    // 2. Set waktu sekarang
     setDefaultDateTime();
     
-    // 3. Kosongkan SEMUA field input
     BALANCING_FIELDS.forEach(fieldId => {
         const element = document.getElementById(fieldId);
         if (element) {
@@ -1628,14 +1733,12 @@ function resetBalancingForm() {
         }
     });
     
-    // 4. Reset select dropdown ke pilihan pertama
     const selects = ['ss2000Via', 'melterSA2', 'ejectorSteam', 'glandSealSteam'];
     selects.forEach(id => {
         const el = document.getElementById(id);
         if (el) el.selectedIndex = 0;
     });
     
-    // 5. Reset ekspor/impor UI
     const eksporEl = document.getElementById('eksporMW');
     const eksporLabel = document.getElementById('eksporLabel');
     const eksporHint = document.getElementById('eksporHint');
@@ -1654,7 +1757,6 @@ function resetBalancingForm() {
         eksporHint.style.color = '#94a3b8';
     }
     
-    // 6. Reset LP Balance display ke default
     calculateLPBalance();
     
     showCustomAlert('Form berhasil direset! Semua field dikosongkan.', 'success');
