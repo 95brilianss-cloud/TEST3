@@ -1,7 +1,7 @@
 // ============================================
 // TURBINE LOGSHEET PRO - VERSION CONTROL
 // ============================================
-const APP_VERSION = '1.2.3'; // Updated with Balancing Draft Feature
+const APP_VERSION = '1.2.4'; // Updated with Balancing Draft Feature
 
 // ============================================
 // CONFIGURATION & CONSTANTS
@@ -41,7 +41,7 @@ const BALANCING_FIELDS = [
     'kegiatanShift'
 ];
 
-const GAS_URL = "https://script.google.com/macros/s/AKfycbymea30xeBLto1sb9BSIr_vRAnrVWwxjnuEetXV8rI9geEaYobhGTXO-jg6hcyPM1Gw/exec";
+const GAS_URL = "https://script.google.com/macros/s/AKfycbwZfKzCXuFVRxqYCnhY90Y8ejFFDSJxdHyp8DxN5shCgfI__0d25E0EIWbEi3pPgnsT/exec";
 
 const INPUT_TYPES = {
     PUMP_STATUS: {
@@ -1399,113 +1399,130 @@ function setDefaultBalancingValues() {
     });
 }
 
-function loadLastBalancingData() {
-    try {
-        const history = JSON.parse(localStorage.getItem(DRAFT_KEYS.BALANCING_HISTORY) || '[]');
+async function loadLastBalancingData(fromSpreadsheet = true) {
+  const loader = document.getElementById('loader');
+  const loaderText = document.querySelector('.loader-text h3');
+  
+  if (loader) loader.style.display = 'flex';
+  if (loaderText) loaderText.textContent = 'Mengambil data terakhir...';
+  
+  try {
+    let lastData = null;
+    let source = 'local';
+    
+    // Coba ambil dari Spreadsheet jika online
+    if (fromSpreadsheet && navigator.onLine) {
+      try {
+        const response = await fetch(`${GAS_URL}?action=getLastBalancing&t=${Date.now()}`);
+        const result = await response.json();
         
-        if (history.length === 0) {
-            // Tidak ada history, set default
-            setDefaultDateTime();
-            setDefaultBalancingValues();
-            return;
+        if (result.success && result.data) {
+          lastData = result.data;
+          source = 'spreadsheet';
+          console.log('Data dari Spreadsheet:', lastData);
         }
-        
-        // Ambil data terakhir dari history
-        const lastData = history[history.length - 1];
-        
-        // Field mapping dari history ke form
-        const fieldMapping = {
-            'loadMW': lastData['Load_MW'],
-            'eksporMW': lastData['Ekspor_Impor_MW'],
-            'plnMW': lastData['PLN_MW'],
-            'ubbMW': lastData['UBB_MW'],
-            'pieMW': lastData['PIE_MW'],
-            'tg65MW': lastData['TG65_MW'],
-            'tg66MW': lastData['TG66_MW'],
-            'gtgMW': lastData['GTG_MW'],
-            'ss6500MW': lastData['SS6500_MW'],
-            'ss2000Via': lastData['SS2000_Via'],
-            'activePowerMW': lastData['Active_Power_MW'],
-            'reactivePowerMVAR': lastData['Reactive_Power_MVAR'],
-            'currentS': lastData['Current_S_A'],
-            'voltageV': lastData['Voltage_V'],
-            'hvs65l02MW': lastData['HVS65_L02_MW'],
-            'hvs65l02Current': lastData['HVS65_L02_Current_A'],
-            'fq1105': lastData['Produksi_Steam_SA_t/h'],
-            'stgSteam': lastData['STG_Steam_t/h'],
-            'pa2Steam': lastData['PA2_Steam_t/h'],
-            'puri2Steam': lastData['Puri2_Steam_t/h'],
-            'melterSA2': lastData['Melter_SA2_t/h'],
-            'ejectorSteam': lastData['Ejector_t/h'],
-            'glandSealSteam': lastData['Gland_Seal_t/h'],
-            'deaeratorSteam': lastData['Deaerator_t/h'],
-            'dumpCondenser': lastData['Dump_Condenser_t/h'],
-            'pcv6105': lastData['PCV6105_t/h'],
-            'pi6122': lastData['PI6122_kg/cm2'],
-            'ti6112': lastData['TI6112_C'],
-            'ti6146': lastData['TI6146_C'],
-            'ti6126': lastData['TI6126_C'],
-            'axialDisplacement': lastData['Axial_Displacement_mm'],
-            'vi6102': lastData['VI6102_μm'],
-            'te6134': lastData['TE6134_C'],
-            'ctSuFan': lastData['CT_SU_Fan'],
-            'ctSuPompa': lastData['CT_SU_Pompa'],
-            'ctSaFan': lastData['CT_SA_Fan'],
-            'ctSaPompa': lastData['CT_SA_Pompa']
-        };
-        
-        // Isi field
-        Object.entries(fieldMapping).forEach(([id, value]) => {
-            const el = document.getElementById(id);
-            if (el && value !== undefined && value !== null && value !== '') {
-                el.value = value;
-            }
-        });
-        
-        // Update UI Ekspor/Impor
-        const eksporEl = document.getElementById('eksporMW');
-        if (eksporEl && eksporEl.value) {
-            handleEksporInput(eksporEl);
-        }
-        
-        // Update tanggal/jam ke sekarang (walaupun data lama, waktu harus sekarang)
-        setDefaultDateTime();
-        
-        // Simpan sebagai draft baru
-        saveBalancingDraft();
-        
-        showCustomAlert('Data terakhir berhasil dimuat. Sesuaikan dengan kondisi saat ini.', 'success');
-        
-    } catch (e) {
-        console.error('Error loading last data:', e);
-        setDefaultDateTime();
-        setDefaultBalancingValues();
-    }
-}
-
-function resetBalancingForm() {
-    if (!confirm('Yakin reset form? Data akan dikembalikan ke default.')) {
-        return;
+      } catch (fetchError) {
+        console.warn('Gagal fetch dari spreadsheet, fallback ke local:', fetchError);
+      }
     }
     
-    // Clear draft
-    clearBalancingDraft();
+    // Jika gagal dari spreadsheet atau offline, coba localStorage
+    if (!lastData) {
+      const history = JSON.parse(localStorage.getItem(DRAFT_KEYS.BALANCING_HISTORY) || '[]');
+      if (history.length > 0) {
+        lastData = history[history.length - 1];
+        source = 'local';
+      }
+    }
     
-    // Set waktu sekarang
-    setDefaultDateTime();
+    // Jika tetap tidak ada data, pakai default
+    if (!lastData) {
+      setDefaultDateTime();
+      setDefaultBalancingValues();
+      showCustomAlert('Belum ada data tersimpan. Form diisi dengan default.', 'info');
+      if (loader) loader.style.display = 'none';
+      return;
+    }
     
-    // Set nilai default (tidak semua kosong, tapi default operasional)
-    setDefaultBalancingValues();
+    // Mapping field dari Spreadsheet ke Form (pastikan nama kolom sesuai)
+    const fieldMapping = {
+      'loadMW': lastData['Load_MW'],
+      'eksporMW': lastData['Ekspor_Impor_MW'],
+      'plnMW': lastData['PLN_MW'],
+      'ubbMW': lastData['UBB_MW'],
+      'pieMW': lastData['PIE_MW'],
+      'tg65MW': lastData['TG65_MW'],
+      'tg66MW': lastData['TG66_MW'],
+      'gtgMW': lastData['GTG_MW'],
+      'ss6500MW': lastData['SS6500_MW'],
+      'ss2000Via': lastData['SS2000_Via'],
+      'activePowerMW': lastData['Active_Power_MW'],
+      'reactivePowerMVAR': lastData['Reactive_Power_MVAR'],
+      'currentS': lastData['Current_S_A'],
+      'voltageV': lastData['Voltage_V'],
+      'hvs65l02MW': lastData['HVS65_L02_MW'],
+      'hvs65l02Current': lastData['HVS65_L02_Current_A'],
+      'total3BMW': lastData['Total_3B_MW'],
+      'fq1105': lastData['Produksi_Steam_SA_t/h'],
+      'stgSteam': lastData['STG_Steam_t/h'],
+      'pa2Steam': lastData['PA2_Steam_t/h'],
+      'puri2Steam': lastData['Puri2_Steam_t/h'],
+      'melterSA2': lastData['Melter_SA2_t/h'],
+      'ejectorSteam': lastData['Ejector_t/h'],
+      'glandSealSteam': lastData['Gland_Seal_t/h'],
+      'deaeratorSteam': lastData['Deaerator_t/h'],
+      'dumpCondenser': lastData['Dump_Condenser_t/h'],
+      'pcv6105': lastData['PCV6105_t/h'],
+      'pi6122': lastData['PI6122_kg/cm2'],
+      'ti6112': lastData['TI6112_C'],
+      'ti6146': lastData['TI6146_C'],
+      'ti6126': lastData['TI6126_C'],
+      'axialDisplacement': lastData['Axial_Displacement_mm'],
+      'vi6102': lastData['VI6102_μm'],
+      'te6134': lastData['TE6134_C'],
+      'ctSuFan': lastData['CT_SU_Fan'],
+      'ctSuPompa': lastData['CT_SU_Pompa'],
+      'ctSaFan': lastData['CT_SA_Fan'],
+      'ctSaPompa': lastData['CT_SA_Pompa'],
+      'kegiatanShift': lastData['Kegiatan_Shift']
+    };
     
-    // Kosongkan field yang selalu berubah
-    const dynamicFields = ['loadMW', 'eksporMW', 'kegiatanShift', 'total3BMW'];
-    dynamicFields.forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.value = '';
+    // Isi field
+    let filledCount = 0;
+    Object.entries(fieldMapping).forEach(([id, value]) => {
+      const el = document.getElementById(id);
+      if (el && value !== undefined && value !== null && value !== '') {
+        el.value = value;
+        filledCount++;
+      }
     });
     
+    // Update UI Ekspor/Impor
+    const eksporEl = document.getElementById('eksporMW');
+    if (eksporEl && eksporEl.value) {
+      handleEksporInput(eksporEl);
+    }
+    
     calculateLPBalance();
-    showCustomAlert('Form direset ke default.', 'success');
+    setDefaultDateTime(); // Waktu selalu diupdate ke sekarang
+    
+    // Simpan sebagai draft baru
+    saveBalancingDraft();
+    
+    const msg = source === 'spreadsheet' 
+      ? `✓ Data terakhir dari server dimuat (${filledCount} field). Sesuaikan dengan kondisi saat ini.`
+      : `✓ Data terakhir dari penyimpanan lokal dimuat (${filledCount} field).`;
+    
+    showCustomAlert(msg, 'success');
+    
+  } catch (e) {
+    console.error('Error loading last data:', e);
+    showCustomAlert('Gagal memuat data. Menggunakan default.', 'error');
+    setDefaultDateTime();
+    setDefaultBalancingValues();
+  } finally {
+    if (loader) loader.style.display = 'none';
+  }
 }
 
 function handleEksporInput(input) {
