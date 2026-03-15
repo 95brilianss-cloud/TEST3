@@ -1568,3 +1568,112 @@ html {
     scroll-behavior: smooth;
     -webkit-overflow-scrolling: touch;
 }
+/* Status Abnormal Card */
+.status-abnormal-card {
+    margin: 16px 0;
+    padding: 16px;
+    background: rgba(239, 68, 68, 0.05);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    border-radius: 12px;
+    animation: slideUp 0.3s ease;
+}
+
+.status-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #f87171;
+    margin-bottom: 12px;
+}
+
+.status-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.status-chip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    background: rgba(30, 41, 59, 0.8);
+    border: 2px solid rgba(148, 163, 184, 0.2);
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 0.8125rem;
+    color: #94a3b8;
+    user-select: none;
+}
+
+.status-chip:hover {
+    border-color: rgba(239, 68, 68, 0.4);
+    background: rgba(239, 68, 68, 0.1);
+}
+
+.status-chip.active {
+    background: rgba(239, 68, 68, 0.2);
+    border-color: #ef4444;
+    color: #f87171;
+    font-weight: 600;
+}
+
+.status-chip input {
+    display: none;
+}
+
+.chip-icon {
+    font-size: 14px;
+}
+
+.status-note {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(239, 68, 68, 0.1);
+}
+
+.status-note input {
+    width: 100%;
+    padding: 10px 12px;
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: 8px;
+    color: #f8fafc;
+    font-size: 0.875rem;
+    outline: none;
+}
+
+.status-note input:focus {
+    border-color: #ef4444;
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+}
+
+/* Indikator di Progress Dot untuk status abnormal */
+.progress-dot.has-issue {
+    background: #ef4444 !important;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+}
+
+/* Highlight pada nilai yang bermasalah */
+.param-value.warning {
+    color: #ef4444;
+    font-weight: 700;
+}
+
+.param-value.upper {
+    color: #f59e0b;
+    font-weight: 700;
+}
+
+.param-value.offline {
+    color: #64748b;
+    text-decoration: line-through;
+}
