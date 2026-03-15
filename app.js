@@ -1,7 +1,7 @@
 // ============================================
 // TURBINE LOGSHEET PRO - VERSION CONTROL
 // ============================================
-const APP_VERSION = '1.2.4'; // Updated with Balancing Draft Feature
+const APP_VERSION = '1.2.5'; 
 
 // ============================================
 // CONFIGURATION & CONSTANTS
@@ -9,8 +9,8 @@ const APP_VERSION = '1.2.4'; // Updated with Balancing Draft Feature
 const AUTH_CONFIG = {
     SESSION_KEY: 'turbine_session',
     USER_KEY: 'turbine_user',
-    SESSION_DURATION: 8 * 60 * 60 * 1000, // 8 hours
-    REMEMBER_ME_DURATION: 30 * 24 * 60 * 60 * 1000 // 30 days
+    SESSION_DURATION: 8 * 60 * 60 * 1000,
+    REMEMBER_ME_DURATION: 30 * 24 * 60 * 60 * 1000
 };
 
 const DRAFT_KEYS = {
@@ -24,7 +24,6 @@ const DRAFT_KEYS = {
     BALANCING_HISTORY: 'balancing_history'
 };
 
-// List semua field ID di form balancing untuk draft
 const BALANCING_FIELDS = [
     'balancingDate', 'balancingTime',
     'loadMW', 'eksporMW',
@@ -187,9 +186,6 @@ const AREAS = {
     ]
 };
 
-// ============================================
-// STATE VARIABLES
-// ============================================
 let lastData = {};
 let currentInput = JSON.parse(localStorage.getItem(DRAFT_KEYS.LOGSHEET)) || {};
 let activeArea = "";
@@ -197,22 +193,14 @@ let activeIdx = 0;
 let totalParams = 0;
 let currentInputType = 'text';
 let autoCloseTimer = null;
-
 let currentUser = null;
 let isAuthenticated = false;
-
-// TPM State
 let activeTPMArea = '';
 let currentTPMPhoto = null;
 let currentTPMStatus = '';
-
-// Balancing State
 let currentShift = 3;
 let balancingAutoSaveInterval = null;
 
-// ============================================
-// SERVICE WORKER REGISTRATION
-// ============================================
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
         navigator.serviceWorker.register(`./sw.js?v=${APP_VERSION}`)
@@ -237,9 +225,6 @@ if ('serviceWorker' in navigator) {
     });
 }
 
-// ============================================
-// AUTHENTICATION FUNCTIONS
-// ============================================
 function initAuth() {
     const session = getSession();
     
@@ -441,9 +426,6 @@ function loadUserStats() {
     }
 }
 
-// ============================================
-// INITIALIZATION
-// ============================================
 window.addEventListener('DOMContentLoaded', () => {
     totalParams = Object.values(AREAS).reduce((acc, arr) => acc + arr.length, 0);
     
@@ -504,9 +486,6 @@ function simulateLoading() {
     }, 300);
 }
 
-// ============================================
-// ALERT SYSTEM
-// ============================================
 function showUpdateAlert() {
     const updateAlert = document.getElementById('updateAlert');
     if (updateAlert) updateAlert.classList.remove('hidden');
@@ -601,9 +580,6 @@ function closeAlert() {
     }
 }
 
-// ============================================
-// NAVIGATION
-// ============================================
 function navigateTo(screenId) {
     const protectedScreens = ['homeScreen', 'areaListScreen', 'paramScreen', 'tpmScreen', 'tpmInputScreen', 'balancingScreen'];
     if (protectedScreens.includes(screenId) && !requireAuth()) {
@@ -635,9 +611,6 @@ function navigateTo(screenId) {
     }
 }
 
-// ============================================
-// LOGSHEET FUNCTIONS
-// ============================================
 function fetchLastData() {
     updateStatusIndicator(false);
     const timeout = setTimeout(() => renderMenu(), 8000);
@@ -958,9 +931,6 @@ async function sendToSheet() {
     }
 }
 
-// ============================================
-// TPM FUNCTIONS
-// ============================================
 function updateTPMUserInfo() {
     if (!currentUser) return;
     
@@ -1143,8 +1113,9 @@ async function submitTPMData() {
 }
 
 // ============================================
-// BALANCING DRAFT FUNCTIONS (AUTO-SAVE)
+// BALANCING FUNCTIONS (FINAL - TANPA PROTEKSI USER)
 // ============================================
+
 function saveBalancingDraft() {
     try {
         const draftData = {};
@@ -1156,14 +1127,13 @@ function saveBalancingDraft() {
             }
         });
         
-        // Simpan juga shift dan USERNAME untuk proteksi ganti operator
         draftData._shift = currentShift;
         draftData._savedAt = new Date().toISOString();
         draftData._user = currentUser ? currentUser.name : 'Unknown';
         draftData._userId = currentUser ? currentUser.id : 'unknown';
         
         localStorage.setItem(DRAFT_KEYS.BALANCING, JSON.stringify(draftData));
-        console.log('Balancing draft saved for user:', draftData._user);
+        console.log('Balancing draft saved');
         updateDraftStatusIndicator();
         
     } catch (e) {
@@ -1180,30 +1150,7 @@ function loadBalancingDraft() {
             return false;
         }
         
-        // ===== CEK USER - PROTEKSI GANTI OPERATOR =====
-        const draftUser = draftData._user || 'Unknown';
-        const currentUserName = currentUser ? currentUser.name : 'Unknown';
-        
-        if (draftUser !== currentUserName) {
-            // User berbeda, tampilkan konfirmasi
-            const useData = confirm(
-                `⚠️ PERHATIAN\n\n` +
-                `Ada data tersimpan dari operator: ${draftUser}\n` +
-                `Anda login sebagai: ${currentUserName}\n\n` +
-                `Pilih OK untuk menggunakan data ${draftUser}\n` +
-                `Pilih Cancel untuk mulai dari data template terakhir`
-            );
-            
-            if (!useData) {
-                // User pilih tidak pakai, load dari history/template
-                loadLastBalancingData();
-                return true;
-            }
-            // Jika OK, lanjut load draft seperti biasa
-        }
-        // ================================================
-        
-        // Load semua field
+        // Load semua field TANPA konfirmasi proteksi user
         let loadedCount = 0;
         BALANCING_FIELDS.forEach(fieldId => {
             const element = document.getElementById(fieldId);
@@ -1213,7 +1160,7 @@ function loadBalancingDraft() {
             }
         });
         
-        // Update UI khusus untuk ekspor/impor jika ada nilai
+        // Update UI khusus untuk ekspor/impor
         const eksporEl = document.getElementById('eksporMW');
         if (eksporEl && eksporEl.value) {
             handleEksporInput(eksporEl);
@@ -1222,11 +1169,7 @@ function loadBalancingDraft() {
         calculateLPBalance();
         
         if (loadedCount > 0) {
-            if (draftUser !== currentUserName) {
-                showCustomAlert(`Data dari ${draftUser} dimuat. Silakan edit sesuai kondisi Anda.`, 'warning');
-            } else {
-                showCustomAlert(`Draft tersimpan ditemukan! ${loadedCount} field telah diisi.`, 'success');
-            }
+            showCustomAlert(`Draft tersimpan ditemukan! ${loadedCount} field telah diisi.`, 'success');
         }
         
         return loadedCount > 0;
@@ -1252,7 +1195,6 @@ function setupBalancingAutoSave() {
         clearInterval(balancingAutoSaveInterval);
     }
     
-    // Auto-save setiap 10 detik jika ada perubahan
     let lastData = '';
     balancingAutoSaveInterval = setInterval(() => {
         const currentData = JSON.stringify(getCurrentBalancingData());
@@ -1262,12 +1204,10 @@ function setupBalancingAutoSave() {
         }
     }, 10000);
     
-    // Auto-save saat user meninggalkan halaman
     window.addEventListener('beforeunload', () => {
         if (hasBalancingData()) saveBalancingDraft();
     });
     
-    // Auto-save saat input berubah (debounced)
     const formContainer = document.getElementById('balancingScreen');
     if (formContainer) {
         let timeout;
@@ -1314,9 +1254,6 @@ function updateDraftStatusIndicator() {
     }
 }
 
-// ============================================
-// BALANCING FUNCTIONS (INPUT BALANCING)
-// ============================================
 function initBalancingScreen() {
     if (!requireAuth()) return;
     
@@ -1325,14 +1262,12 @@ function initBalancingScreen() {
     
     detectShift();
     
-    // Cek draft dan user
     const draftData = JSON.parse(localStorage.getItem(DRAFT_KEYS.BALANCING));
     const hasDraft = draftData !== null;
     
     if (hasDraft) {
         loadBalancingDraft();
     } else {
-        // Tidak ada draft, load dari history/template
         loadLastBalancingData();
     }
     
@@ -1380,149 +1315,169 @@ function setDefaultDateTime() {
     if (timeInput) timeInput.value = now.toTimeString().slice(0, 5);
 }
 
-function setDefaultBalancingValues() {
-    const defaults = {
-        'hvs65l02Current': '1',
-        'puri2Steam': '1.4',
-        'deaeratorSteam': '2.5',
-        'dumpCondenser': '5.0',
-        'pcv6105': '0.0',
-        'ctSuFan': '4',
-        'ctSuPompa': '2',
-        'ctSaFan': '3',
-        'ctSaPompa': '2'
-    };
+async function loadLastBalancingData(fromSpreadsheet = true) {
+    const loader = document.getElementById('loader');
+    const loaderText = document.querySelector('.loader-text h3');
     
-    Object.entries(defaults).forEach(([id, value]) => {
-        const el = document.getElementById(id);
-        if (el && !el.value) el.value = value;
-    });
+    if (loader) loader.style.display = 'flex';
+    if (loaderText) loaderText.textContent = 'Mengambil data terakhir...';
+    
+    try {
+        let lastData = null;
+        let source = 'local';
+        
+        if (fromSpreadsheet && navigator.onLine) {
+            try {
+                const response = await fetch(`${GAS_URL}?action=getLastBalancing&t=${Date.now()}`);
+                const result = await response.json();
+                
+                if (result.success && result.data) {
+                    lastData = result.data;
+                    source = 'spreadsheet';
+                }
+            } catch (fetchError) {
+                console.warn('Gagal fetch dari spreadsheet:', fetchError);
+            }
+        }
+        
+        if (!lastData) {
+            const history = JSON.parse(localStorage.getItem(DRAFT_KEYS.BALANCING_HISTORY) || '[]');
+            if (history.length > 0) {
+                lastData = history[history.length - 1];
+                source = 'local';
+            }
+        }
+        
+        if (!lastData) {
+            setDefaultDateTime();
+            if (loader) loader.style.display = 'none';
+            return;
+        }
+        
+        const fieldMapping = {
+            'loadMW': lastData['Load_MW'],
+            'eksporMW': lastData['Ekspor_Impor_MW'],
+            'plnMW': lastData['PLN_MW'],
+            'ubbMW': lastData['UBB_MW'],
+            'pieMW': lastData['PIE_MW'],
+            'tg65MW': lastData['TG65_MW'],
+            'tg66MW': lastData['TG66_MW'],
+            'gtgMW': lastData['GTG_MW'],
+            'ss6500MW': lastData['SS6500_MW'],
+            'ss2000Via': lastData['SS2000_Via'],
+            'activePowerMW': lastData['Active_Power_MW'],
+            'reactivePowerMVAR': lastData['Reactive_Power_MVAR'],
+            'currentS': lastData['Current_S_A'],
+            'voltageV': lastData['Voltage_V'],
+            'hvs65l02MW': lastData['HVS65_L02_MW'],
+            'hvs65l02Current': lastData['HVS65_L02_Current_A'],
+            'total3BMW': lastData['Total_3B_MW'],
+            'fq1105': lastData['Produksi_Steam_SA_t/h'],
+            'stgSteam': lastData['STG_Steam_t/h'],
+            'pa2Steam': lastData['PA2_Steam_t/h'],
+            'puri2Steam': lastData['Puri2_Steam_t/h'],
+            'melterSA2': lastData['Melter_SA2_t/h'],
+            'ejectorSteam': lastData['Ejector_t/h'],
+            'glandSealSteam': lastData['Gland_Seal_t/h'],
+            'deaeratorSteam': lastData['Deaerator_t/h'],
+            'dumpCondenser': lastData['Dump_Condenser_t/h'],
+            'pcv6105': lastData['PCV6105_t/h'],
+            'pi6122': lastData['PI6122_kg/cm2'],
+            'ti6112': lastData['TI6112_C'],
+            'ti6146': lastData['TI6146_C'],
+            'ti6126': lastData['TI6126_C'],
+            'axialDisplacement': lastData['Axial_Displacement_mm'],
+            'vi6102': lastData['VI6102_μm'],
+            'te6134': lastData['TE6134_C'],
+            'ctSuFan': lastData['CT_SU_Fan'],
+            'ctSuPompa': lastData['CT_SU_Pompa'],
+            'ctSaFan': lastData['CT_SA_Fan'],
+            'ctSaPompa': lastData['CT_SA_Pompa'],
+            'kegiatanShift': lastData['Kegiatan_Shift']
+        };
+        
+        Object.entries(fieldMapping).forEach(([id, value]) => {
+            const el = document.getElementById(id);
+            if (el && value !== undefined && value !== null && value !== '') {
+                el.value = value;
+            }
+        });
+        
+        const eksporEl = document.getElementById('eksporMW');
+        if (eksporEl && eksporEl.value) {
+            handleEksporInput(eksporEl);
+        }
+        
+        calculateLPBalance();
+        setDefaultDateTime();
+        saveBalancingDraft();
+        
+        const msg = source === 'spreadsheet' 
+            ? `✓ Data terakhir dari server dimuat.`
+            : `✓ Data terakhir dari penyimpanan lokal dimuat.`;
+        
+        showCustomAlert(msg, 'success');
+        
+    } catch (e) {
+        console.error('Error loading last data:', e);
+        setDefaultDateTime();
+    } finally {
+        if (loader) loader.style.display = 'none';
+    }
 }
 
-async function loadLastBalancingData(fromSpreadsheet = true) {
-  const loader = document.getElementById('loader');
-  const loaderText = document.querySelector('.loader-text h3');
-  
-  if (loader) loader.style.display = 'flex';
-  if (loaderText) loaderText.textContent = 'Mengambil data terakhir...';
-  
-  try {
-    let lastData = null;
-    let source = 'local';
+// ============================================
+// RESET FORM - DIPERBAIKI (BENAR-BENAR BERSIH)
+// ============================================
+function resetBalancingForm() {
+    if (!confirm('Yakin reset form? Semua data akan dikosongkan dan draft akan dihapus.')) {
+        return;
+    }
     
-    // Coba ambil dari Spreadsheet jika online
-    if (fromSpreadsheet && navigator.onLine) {
-      try {
-        const response = await fetch(`${GAS_URL}?action=getLastBalancing&t=${Date.now()}`);
-        const result = await response.json();
-        
-        if (result.success && result.data) {
-          lastData = result.data;
-          source = 'spreadsheet';
-          console.log('Data dari Spreadsheet:', lastData);
+    // 1. Hapus draft dari localStorage
+    clearBalancingDraft();
+    
+    // 2. Set waktu sekarang
+    setDefaultDateTime();
+    
+    // 3. Kosongkan SEMUA field input
+    BALANCING_FIELDS.forEach(fieldId => {
+        const element = document.getElementById(fieldId);
+        if (element) {
+            element.value = '';
         }
-      } catch (fetchError) {
-        console.warn('Gagal fetch dari spreadsheet, fallback ke local:', fetchError);
-      }
-    }
-    
-    // Jika gagal dari spreadsheet atau offline, coba localStorage
-    if (!lastData) {
-      const history = JSON.parse(localStorage.getItem(DRAFT_KEYS.BALANCING_HISTORY) || '[]');
-      if (history.length > 0) {
-        lastData = history[history.length - 1];
-        source = 'local';
-      }
-    }
-    
-    // Jika tetap tidak ada data, pakai default
-    if (!lastData) {
-      setDefaultDateTime();
-      setDefaultBalancingValues();
-      showCustomAlert('Belum ada data tersimpan. Form diisi dengan default.', 'info');
-      if (loader) loader.style.display = 'none';
-      return;
-    }
-    
-    // Mapping field dari Spreadsheet ke Form (pastikan nama kolom sesuai)
-    const fieldMapping = {
-      'loadMW': lastData['Load_MW'],
-      'eksporMW': lastData['Ekspor_Impor_MW'],
-      'plnMW': lastData['PLN_MW'],
-      'ubbMW': lastData['UBB_MW'],
-      'pieMW': lastData['PIE_MW'],
-      'tg65MW': lastData['TG65_MW'],
-      'tg66MW': lastData['TG66_MW'],
-      'gtgMW': lastData['GTG_MW'],
-      'ss6500MW': lastData['SS6500_MW'],
-      'ss2000Via': lastData['SS2000_Via'],
-      'activePowerMW': lastData['Active_Power_MW'],
-      'reactivePowerMVAR': lastData['Reactive_Power_MVAR'],
-      'currentS': lastData['Current_S_A'],
-      'voltageV': lastData['Voltage_V'],
-      'hvs65l02MW': lastData['HVS65_L02_MW'],
-      'hvs65l02Current': lastData['HVS65_L02_Current_A'],
-      'total3BMW': lastData['Total_3B_MW'],
-      'fq1105': lastData['Produksi_Steam_SA_t/h'],
-      'stgSteam': lastData['STG_Steam_t/h'],
-      'pa2Steam': lastData['PA2_Steam_t/h'],
-      'puri2Steam': lastData['Puri2_Steam_t/h'],
-      'melterSA2': lastData['Melter_SA2_t/h'],
-      'ejectorSteam': lastData['Ejector_t/h'],
-      'glandSealSteam': lastData['Gland_Seal_t/h'],
-      'deaeratorSteam': lastData['Deaerator_t/h'],
-      'dumpCondenser': lastData['Dump_Condenser_t/h'],
-      'pcv6105': lastData['PCV6105_t/h'],
-      'pi6122': lastData['PI6122_kg/cm2'],
-      'ti6112': lastData['TI6112_C'],
-      'ti6146': lastData['TI6146_C'],
-      'ti6126': lastData['TI6126_C'],
-      'axialDisplacement': lastData['Axial_Displacement_mm'],
-      'vi6102': lastData['VI6102_μm'],
-      'te6134': lastData['TE6134_C'],
-      'ctSuFan': lastData['CT_SU_Fan'],
-      'ctSuPompa': lastData['CT_SU_Pompa'],
-      'ctSaFan': lastData['CT_SA_Fan'],
-      'ctSaPompa': lastData['CT_SA_Pompa'],
-      'kegiatanShift': lastData['Kegiatan_Shift']
-    };
-    
-    // Isi field
-    let filledCount = 0;
-    Object.entries(fieldMapping).forEach(([id, value]) => {
-      const el = document.getElementById(id);
-      if (el && value !== undefined && value !== null && value !== '') {
-        el.value = value;
-        filledCount++;
-      }
     });
     
-    // Update UI Ekspor/Impor
+    // 4. Reset select dropdown ke pilihan pertama
+    const selects = ['ss2000Via', 'melterSA2', 'ejectorSteam', 'glandSealSteam'];
+    selects.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.selectedIndex = 0;
+    });
+    
+    // 5. Reset ekspor/impor UI
     const eksporEl = document.getElementById('eksporMW');
-    if (eksporEl && eksporEl.value) {
-      handleEksporInput(eksporEl);
+    const eksporLabel = document.getElementById('eksporLabel');
+    const eksporHint = document.getElementById('eksporHint');
+    
+    if (eksporEl) {
+        eksporEl.setAttribute('data-state', '');
+        eksporEl.style.borderColor = 'rgba(148, 163, 184, 0.2)';
+        eksporEl.style.background = 'rgba(15, 23, 42, 0.6)';
+    }
+    if (eksporLabel) {
+        eksporLabel.textContent = 'Ekspor/Impor (MW)';
+        eksporLabel.style.color = '#94a3b8';
+    }
+    if (eksporHint) {
+        eksporHint.innerHTML = '💡 <strong>Minus (-) = Ekspor</strong> | <strong>Plus (+) = Impor</strong>';
+        eksporHint.style.color = '#94a3b8';
     }
     
+    // 6. Reset LP Balance display ke default
     calculateLPBalance();
-    setDefaultDateTime(); // Waktu selalu diupdate ke sekarang
     
-    // Simpan sebagai draft baru
-    saveBalancingDraft();
-    
-    const msg = source === 'spreadsheet' 
-      ? `✓ Data terakhir dari server dimuat (${filledCount} field). Sesuaikan dengan kondisi saat ini.`
-      : `✓ Data terakhir dari penyimpanan lokal dimuat (${filledCount} field).`;
-    
-    showCustomAlert(msg, 'success');
-    
-  } catch (e) {
-    console.error('Error loading last data:', e);
-    showCustomAlert('Gagal memuat data. Menggunakan default.', 'error');
-    setDefaultDateTime();
-    setDefaultBalancingValues();
-  } finally {
-    if (loader) loader.style.display = 'none';
-  }
+    showCustomAlert('Form berhasil direset! Semua field dikosongkan.', 'success');
 }
 
 function handleEksporInput(input) {
@@ -1536,7 +1491,7 @@ function handleEksporInput(input) {
             label.style.color = '#94a3b8';
         }
         if (hint) {
-            hint.innerHTML = '💡 <strong>Minus (-) = Ekspor</strong> ke Grid | <strong>Plus (+) = Impor</strong> dari Grid';
+            hint.innerHTML = '💡 <strong>Minus (-) = Ekspor</strong> | <strong>Plus (+) = Impor</strong>';
             hint.style.color = '#94a3b8';
         }
         input.style.borderColor = 'rgba(148, 163, 184, 0.2)';
@@ -1659,9 +1614,6 @@ function calculateLPBalance() {
     return balance;
 }
 
-// ============================================
-// FORMAT WHATSAPP MESSAGE
-// ============================================
 function formatWhatsAppMessage(data) {
     const formatNum = (num, maxDecimals = 2) => {
         if (num === undefined || num === null || num === '' || isNaN(num)) return '-';
@@ -1745,9 +1697,6 @@ function formatWhatsAppMessage(data) {
     return message;
 }
 
-// ============================================
-// SUBMIT BALANCING
-// ============================================
 async function submitBalancingData() {
     if (!requireAuth()) return;
     
@@ -1838,11 +1787,6 @@ async function submitBalancingData() {
         
         showCustomAlert('✓ Data Balancing berhasil dikirim!', 'success');
         
-        // CATATAN: Draft TIDAK dihapus agar bisa jadi template shift berikutnya
-        // Jika ingin hapus draft setelah submit, uncomment baris di bawah:
-        // clearBalancingDraft();
-        
-        // Simpan ke history untuk fitur "Gunakan Data Terakhir"
         let balancingHistory = JSON.parse(localStorage.getItem(DRAFT_KEYS.BALANCING_HISTORY) || '[]');
         balancingHistory.push({
             ...balancingData,
@@ -1850,7 +1794,6 @@ async function submitBalancingData() {
         });
         localStorage.setItem(DRAFT_KEYS.BALANCING_HISTORY, JSON.stringify(balancingHistory));
         
-        // Auto open WhatsApp
         const waMessage = encodeURIComponent(formatWhatsAppMessage(balancingData));
         const waNumber = '6282233069673';
         setTimeout(() => {
@@ -1874,43 +1817,28 @@ async function submitBalancingData() {
     }
 }
 
-// ============================================
-// PWA INSTALLATION HANDLER - CUSTOM UI
-// ============================================
-
+// PWA Install Handler
 let deferredPrompt = null;
 let installBannerShown = false;
 
-// Tangkap event install browser dan SEMBUNYIKAN default prompt
 window.addEventListener('beforeinstallprompt', (e) => {
-    // Cegah browser menampilkan popup default "Tambahkan ke Beranda"
     e.preventDefault();
-    
-    // Simpan event untuk nanti
     deferredPrompt = e;
     
-    // Tampilkan custom UI setelah beberapa detik (jika belum install)
     if (!isAppInstalled() && !installBannerShown) {
         setTimeout(() => {
             showCustomInstallBanner();
-        }, 3000); // Muncul setelah 3 detik
+        }, 3000);
     }
-    
-    console.log('PWA install available - default prompt prevented');
 });
 
-// Saat app sudah terinstall
 window.addEventListener('appinstalled', () => {
     hideCustomInstallBanner();
     deferredPrompt = null;
     installBannerShown = true;
-    
-    // Tampilkan notifikasi sukses (tanpa alert browser)
     showToast('✓ Aplikasi berhasil diinstall!', 'success');
-    console.log('PWA installed successfully');
 });
 
-// Custom Install Banner (Muncul di dalam app, bukan popup browser)
 function showCustomInstallBanner() {
     if (document.getElementById('customInstallBanner')) return;
     
@@ -1933,7 +1861,6 @@ function showCustomInstallBanner() {
             text-align: center;
             animation: scaleIn 0.3s ease;
         ">
-            <!-- Icon App -->
             <div style="
                 width: 80px;
                 height: 80px;
@@ -1998,7 +1925,6 @@ function showCustomInstallBanner() {
                 </button>
             </div>
             
-            <!-- Fitur kecil -->
             <div style="
                 margin-top: 20px;
                 padding-top: 20px;
@@ -2031,7 +1957,6 @@ function showCustomInstallBanner() {
             </div>
         </div>
         
-        <!-- Overlay gelap -->
         <div style="
             position: fixed;
             inset: 0;
@@ -2059,7 +1984,6 @@ async function installPWA() {
         return;
     }
     
-    // Tampilkan browser prompt (tapi sekarang user sudah siap)
     deferredPrompt.prompt();
     
     const { outcome } = await deferredPrompt.userChoice;
@@ -2076,13 +2000,12 @@ async function installPWA() {
     deferredPrompt = null;
 }
 
-// Cek status install
 function isAppInstalled() {
     return window.matchMedia('(display-mode: standalone)').matches || 
            window.navigator.standalone === true ||
            document.referrer.includes('android-app://');
 }
-// Tambahan animasi CSS via JS
+
 const style = document.createElement('style');
 style.textContent = `
     @keyframes scaleIn {
@@ -2095,9 +2018,11 @@ style.textContent = `
     }
 `;
 document.head.appendChild(style);
-// ============================================
-// KEYBOARD EVENTS
-// ============================================
+
+function showToast(msg, type) {
+    console.log(`[${type}] ${msg}`);
+}
+
 document.addEventListener('keydown', (e) => {
     const paramScreen = document.getElementById('paramScreen');
     if (!paramScreen || !paramScreen.classList.contains('active')) return;
