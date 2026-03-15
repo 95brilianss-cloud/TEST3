@@ -1,7 +1,7 @@
 // ============================================
 // TURBINE LOGSHEET PRO - VERSION CONTROL
 // ============================================
-const APP_VERSION = '1.2.5'; 
+const APP_VERSION = '1.2.6'; 
 
 // ============================================
 // CONFIGURATION & CONSTANTS
@@ -409,7 +409,7 @@ function loadUserStats() {
     let completedAreas = 0;
     
     Object.entries(AREAS).forEach(([areaName, params]) => {
-        const filled = currentInput[areaName] ? Object.keys(currentInput[areaName]).length : 0;
+        const filled = currentInput[areaName] ? Object.keys(currentInput[areaName]).filter(k => !k.endsWith('_STATUS') && !k.endsWith('_NOTE')).length : 0;
         if (filled === params.length && filled > 0) completedAreas++;
     });
     
@@ -647,17 +647,25 @@ function renderMenu() {
     let html = '';
     
     Object.entries(AREAS).forEach(([areaName, params]) => {
-        const filled = currentInput[areaName] ? Object.keys(currentInput[areaName]).length : 0;
+        const areaData = currentInput[areaName] || {};
+        const filled = Object.keys(areaData).filter(k => !k.endsWith('_STATUS') && !k.endsWith('_NOTE')).length;
         const total = params.length;
         const percent = Math.round((filled / total) * 100);
         const isCompleted = filled === total && total > 0;
+        
+        // Check for abnormal statuses
+        const hasAbnormal = params.some((_, idx) => {
+            const paramName = AREAS[areaName][idx];
+            return areaData[paramName + '_STATUS'];
+        });
+        
         if (isCompleted) completedAreas++;
         
         const circumference = 2 * Math.PI * 18;
         const strokeDashoffset = circumference - (percent / 100) * circumference;
         
         html += `
-            <div class="area-item ${isCompleted ? 'completed' : ''}" onclick="openArea('${areaName}')">
+            <div class="area-item ${isCompleted ? 'completed' : ''} ${hasAbnormal ? 'has-warning' : ''}" onclick="openArea('${areaName}')">
                 <div class="area-progress-ring">
                     <svg width="40" height="40" viewBox="0 0 40 40">
                         <circle cx="20" cy="20" r="18" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="3"/>
@@ -671,7 +679,10 @@ function renderMenu() {
                     <div class="area-name">${areaName}</div>
                     <div class="area-meta">${filled} dari ${total} parameter diisi</div>
                 </div>
-                <div class="area-status">${isCompleted ? '✓' : '❯'}</div>
+                <div class="area-status">
+                    ${hasAbnormal ? '<span style="color: #ef4444; margin-right: 4px;">⚠️</span>' : ''}
+                    ${isCompleted ? '✓' : '❯'}
+                </div>
             </div>
         `;
     });
@@ -689,7 +700,7 @@ function updateOverallProgress() {
     const totalAreas = Object.keys(AREAS).length;
     let completedAreas = 0;
     Object.entries(AREAS).forEach(([areaName, params]) => {
-        const filled = currentInput[areaName] ? Object.keys(currentInput[areaName]).length : 0;
+        const filled = currentInput[areaName] ? Object.keys(currentInput[areaName]).filter(k => !k.endsWith('_STATUS') && !k.endsWith('_NOTE')).length : 0;
         if (filled === params.length && filled > 0) completedAreas++;
     });
     updateOverallProgressUI(completedAreas, totalAreas);
@@ -724,10 +735,16 @@ function renderProgressDots() {
     const total = AREAS[activeArea].length;
     let html = '';
     for (let i = 0; i < total; i++) {
-        const isFilled = currentInput[activeArea] && currentInput[activeArea][AREAS[activeArea][i]];
+        const fullLabel = AREAS[activeArea][i];
+        const isFilled = currentInput[activeArea] && currentInput[activeArea][fullLabel];
+        const hasStatus = currentInput[activeArea] && currentInput[activeArea][fullLabel + '_STATUS'];
         const isActive = i === activeIdx;
-        const className = isActive ? 'active' : (isFilled ? 'filled' : '');
-        html += `<div class="progress-dot ${className}" onclick="jumpToStep(${i})"></div>`;
+        let className = '';
+        if (isActive) className = 'active';
+        else if (hasStatus) className = 'has-issue';
+        else if (isFilled) className = 'filled';
+        
+        html += `<div class="progress-dot ${className}" onclick="jumpToStep(${i})" title="${hasStatus ? 'Ada masalah' : ''}"></div>`;
     }
     container.innerHTML = html;
 }
@@ -736,7 +753,7 @@ function jumpToStep(index) {
     const input = document.getElementById('valInput');
     if (input) {
         const currentVal = input.value.trim();
-        if (currentVal) {
+        if (currentVal && currentVal !== '-') {
             const fullLabel = AREAS[activeArea][activeIdx];
             if (!currentInput[activeArea]) currentInput[activeArea] = {};
             currentInput[activeArea][fullLabel] = currentVal;
@@ -772,6 +789,136 @@ function getParamName(label) {
     return label.split(' (')[0];
 }
 
+// ============================================
+// ABNORMAL STATUS FUNCTIONS
+// ============================================
+
+function handleStatusChange(checkbox) {
+    const chip = checkbox.closest('.status-chip');
+    const noteContainer = document.getElementById('statusNoteContainer');
+    const fullLabel = AREAS[activeArea][activeIdx];
+    
+    // Uncheck others (single select)
+    document.querySelectorAll('input[name="paramStatus"]').forEach(cb => {
+        if (cb !== checkbox) {
+            cb.checked = false;
+            cb.closest('.status-chip').classList.remove('active');
+        }
+    });
+    
+    // Toggle active class
+    if (checkbox.checked) {
+        chip.classList.add('active');
+        if (noteContainer) noteContainer.style.display = 'block';
+        
+        // Auto focus ke note jika dipilih
+        setTimeout(() => {
+            const noteInput = document.getElementById('statusNote');
+            if (noteInput) noteInput.focus();
+        }, 100);
+        
+        // Jika TIDAK TERPASANG, kosongkan input nilai
+        if (checkbox.value === 'NOT_INSTALLED') {
+            const valInput = document.getElementById('valInput');
+            if (valInput) {
+                valInput.value = '-';
+                valInput.disabled = true;
+                valInput.style.opacity = '0.5';
+                valInput.style.background = 'rgba(100, 116, 139, 0.2)';
+            }
+        }
+    } else {
+        chip.classList.remove('active');
+        if (noteContainer) noteContainer.style.display = 'none';
+        const noteInput = document.getElementById('statusNote');
+        if (noteInput) noteInput.value = '';
+        
+        // Enable kembali input nilai
+        const valInput = document.getElementById('valInput');
+        if (valInput) {
+            valInput.value = '';
+            valInput.disabled = false;
+            valInput.style.opacity = '1';
+            valInput.style.background = '';
+            valInput.focus();
+        }
+    }
+    
+    // Simpan ke draft
+    saveCurrentStatusToDraft();
+}
+
+function saveCurrentStatusToDraft() {
+    const fullLabel = AREAS[activeArea][activeIdx];
+    const checkedStatus = document.querySelector('input[name="paramStatus"]:checked');
+    const note = document.getElementById('statusNote')?.value || '';
+    
+    if (!currentInput[activeArea]) currentInput[activeArea] = {};
+    
+    if (checkedStatus) {
+        currentInput[activeArea][fullLabel + '_STATUS'] = checkedStatus.value;
+        if (note) {
+            currentInput[activeArea][fullLabel + '_NOTE'] = note;
+        } else {
+            delete currentInput[activeArea][fullLabel + '_NOTE'];
+        }
+    } else {
+        delete currentInput[activeArea][fullLabel + '_STATUS'];
+        delete currentInput[activeArea][fullLabel + '_NOTE'];
+    }
+    
+    localStorage.setItem(DRAFT_KEYS.LOGSHEET, JSON.stringify(currentInput));
+    updateProgressDots();
+}
+
+function loadAbnormalStatus(fullLabel) {
+    // Reset UI
+    document.querySelectorAll('input[name="paramStatus"]').forEach(cb => {
+        cb.checked = false;
+        cb.closest('.status-chip').classList.remove('active');
+    });
+    const noteContainer = document.getElementById('statusNoteContainer');
+    const noteInput = document.getElementById('statusNote');
+    
+    if (noteContainer) noteContainer.style.display = 'none';
+    if (noteInput) noteInput.value = '';
+    
+    // Enable input nilai
+    const valInput = document.getElementById('valInput');
+    if (valInput) {
+        valInput.disabled = false;
+        valInput.style.opacity = '1';
+        valInput.style.background = '';
+    }
+    
+    // Load dari draft jika ada
+    if (currentInput[activeArea] && currentInput[activeArea][fullLabel + '_STATUS']) {
+        const savedStatus = currentInput[activeArea][fullLabel + '_STATUS'];
+        const checkbox = document.querySelector(`input[value="${savedStatus}"]`);
+        
+        if (checkbox) {
+            checkbox.checked = true;
+            checkbox.closest('.status-chip').classList.add('active');
+            if (noteContainer) noteContainer.style.display = 'block';
+            
+            const savedNote = currentInput[activeArea][fullLabel + '_NOTE'] || '';
+            if (noteInput) noteInput.value = savedNote;
+            
+            // Jika TIDAK TERPASANG, set input nilai ke '-' dan disable
+            if (savedStatus === 'NOT_INSTALLED') {
+                if (valInput) {
+                    valInput.value = '-';
+                    valInput.disabled = true;
+                    valInput.style.opacity = '0.5';
+                    valInput.style.background = 'rgba(100, 116, 139, 0.2)';
+                }
+            }
+        }
+    }
+}
+
+// ============================================
+
 function showStep() {
     const fullLabel = AREAS[activeArea][activeIdx];
     const total = AREAS[activeArea].length;
@@ -791,7 +938,14 @@ function showStep() {
     if (areaProgress) areaProgress.textContent = `${activeIdx + 1}/${total}`;
     if (labelInput) labelInput.textContent = getParamName(fullLabel);
     if (lastTimeLabel) lastTimeLabel.textContent = lastData._lastTime || '--:--';
-    if (prevValDisplay) prevValDisplay.textContent = lastData[fullLabel] || '--';
+    
+    // Check if previous value has status
+    let prevVal = lastData[fullLabel] || '--';
+    if (prevVal !== '--' && lastData[fullLabel + '_STATUS']) {
+        const status = lastData[fullLabel + '_STATUS'];
+        prevVal += ` [${status}]`;
+    }
+    if (prevValDisplay) prevValDisplay.textContent = prevVal;
     
     const currentValue = (currentInput[activeArea] && currentInput[activeArea][fullLabel]) || '';
     
@@ -827,18 +981,13 @@ function showStep() {
         if (mainInputWrapper) mainInputWrapper.classList.remove('has-select');
     }
     
-    const dots = document.querySelectorAll('.progress-dot');
-    dots.forEach((dot, idx) => {
-        dot.className = 'progress-dot';
-        if (idx === activeIdx) dot.classList.add('active');
-        else if (currentInput[activeArea] && currentInput[activeArea][AREAS[activeArea][idx]]) {
-            dot.classList.add('filled');
-        }
-    });
+    // Load abnormal status
+    loadAbnormalStatus(fullLabel);
+    updateProgressDots();
     
     setTimeout(() => {
         const input = document.getElementById('valInput');
-        if (input && inputType.type === 'text') {
+        if (input && inputType.type === 'text' && !input.disabled) {
             input.focus();
             input.select();
         }
@@ -847,15 +996,27 @@ function showStep() {
 
 function saveStep() {
     const input = document.getElementById('valInput');
-    if (!input) return;
-    const val = input.value.trim();
     const fullLabel = AREAS[activeArea][activeIdx];
     
-    if (val) {
-        if (!currentInput[activeArea]) currentInput[activeArea] = {};
-        currentInput[activeArea][fullLabel] = val;
-        localStorage.setItem(DRAFT_KEYS.LOGSHEET, JSON.stringify(currentInput));
+    if (!currentInput[activeArea]) currentInput[activeArea] = {};
+    
+    // Save value if exists
+    if (input && input.value.trim() && input.value !== '-') {
+        currentInput[activeArea][fullLabel] = input.value.trim();
     }
+    
+    // Save abnormal status
+    const checkedStatus = document.querySelector('input[name="paramStatus"]:checked');
+    if (checkedStatus) {
+        currentInput[activeArea][fullLabel + '_STATUS'] = checkedStatus.value;
+        const note = document.getElementById('statusNote')?.value || '';
+        if (note) {
+            currentInput[activeArea][fullLabel + '_NOTE'] = note;
+        }
+    }
+    
+    // Save to localStorage
+    localStorage.setItem(DRAFT_KEYS.LOGSHEET, JSON.stringify(currentInput));
     
     if (activeIdx < AREAS[activeArea].length - 1) {
         activeIdx++;
@@ -867,6 +1028,25 @@ function saveStep() {
 }
 
 function goBack() {
+    // Save current status before going back
+    const fullLabel = AREAS[activeArea][activeIdx];
+    const input = document.getElementById('valInput');
+    
+    if (input && input.value.trim()) {
+        if (!currentInput[activeArea]) currentInput[activeArea] = {};
+        currentInput[activeArea][fullLabel] = input.value.trim();
+    }
+    
+    const checkedStatus = document.querySelector('input[name="paramStatus"]:checked');
+    if (checkedStatus) {
+        if (!currentInput[activeArea]) currentInput[activeArea] = {};
+        currentInput[activeArea][fullLabel + '_STATUS'] = checkedStatus.value;
+        const note = document.getElementById('statusNote')?.value || '';
+        if (note) currentInput[activeArea][fullLabel + '_NOTE'] = note;
+    }
+    
+    localStorage.setItem(DRAFT_KEYS.LOGSHEET, JSON.stringify(currentInput));
+    
     if (activeIdx > 0) {
         activeIdx--;
         showStep();
