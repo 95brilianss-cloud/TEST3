@@ -134,12 +134,14 @@ body {
 }
 
 .turbine-logo-large {
-    width: 120px; /* Perbesar sedikit */
+    width: 120px;
     height: 120px;
-    margin: 0 auto 32px auto; /* Tambah margin bottom */
+    margin: 0 auto 32px auto;
     display: flex;
     align-items: center;
     justify-content: center;
+    /* Tambahkan untuk memastikan rotasi sempurna */
+    position: relative;
 }
 
 .turbine-logo-large svg {
@@ -147,6 +149,9 @@ body {
     height: 100%;
     animation: spin 2s linear infinite;
     filter: drop-shadow(0 0 15px rgba(14, 165, 233, 0.4));
+    /* Fix utama: pastikan titik rotasi di tengah */
+    transform-origin: center center;
+    transform-box: fill-box; /* Penting untuk SVG */
 }
 
 .loader-text {
