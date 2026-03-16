@@ -1,7 +1,7 @@
 // ============================================
 // TURBINE LOGSHEET PRO - VERSION CONTROL
 // ============================================
-const APP_VERSION = '1.2.7'; 
+const APP_VERSION = '1.2.8'; 
 
 // ============================================
 // CONFIGURATION & CONSTANTS
@@ -186,6 +186,9 @@ const AREAS = {
     ]
 };
 
+// ============================================
+// STATE VARIABLES
+// ============================================
 let lastData = {};
 let currentInput = JSON.parse(localStorage.getItem(DRAFT_KEYS.LOGSHEET)) || {};
 let activeArea = "";
@@ -200,7 +203,12 @@ let currentTPMPhoto = null;
 let currentTPMStatus = '';
 let currentShift = 3;
 let balancingAutoSaveInterval = null;
+let uploadProgressInterval = null;
+let currentUploadController = null;
 
+// ============================================
+// SERVICE WORKER
+// ============================================
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
         navigator.serviceWorker.register(`./sw.js?v=${APP_VERSION}`)
@@ -225,6 +233,9 @@ if ('serviceWorker' in navigator) {
     });
 }
 
+// ============================================
+// AUTHENTICATION FUNCTIONS
+// ============================================
 function initAuth() {
     const session = getSession();
     
@@ -426,6 +437,158 @@ function loadUserStats() {
     }
 }
 
+// ============================================
+// UPLOAD PROGRESS MANAGER (BARU)
+// ============================================
+function showUploadProgress(title = 'Mengupload Data...') {
+    const overlay = document.getElementById('uploadProgressOverlay');
+    const percentage = document.getElementById('progressPercentage');
+    const ringFill = document.getElementById('progressRingFill');
+    const turbine = document.getElementById('uploadTurbine');
+    const statusText = document.getElementById('uploadStatusText');
+    
+    // Reset states
+    overlay.classList.remove('hidden', 'success', 'error');
+    percentage.textContent = '0%';
+    ringFill.style.strokeDashoffset = 339.292;
+    turbine.classList.add('spinning');
+    statusText.textContent = title;
+    
+    // Reset steps
+    document.querySelectorAll('.step').forEach((step, idx) => {
+        step.classList.remove('active', 'completed');
+        if (idx === 0) step.classList.add('active');
+    });
+    document.querySelectorAll('.step-line').forEach(line => line.classList.remove('active'));
+    
+    // Start simulated progress
+    let progress = 0;
+    let currentStep = 1;
+    
+    uploadProgressInterval = setInterval(() => {
+        if (progress < 30) {
+            progress += Math.random() * 3;
+        } else if (progress < 70) {
+            progress += Math.random() * 2;
+            if (currentStep === 1 && progress > 35) {
+                setUploadStep(2);
+                currentStep = 2;
+            }
+        } else if (progress < 95) {
+            progress += Math.random() * 1;
+            if (currentStep === 2 && progress > 75) {
+                setUploadStep(3);
+                currentStep = 3;
+            }
+        } else {
+            progress += 0.5;
+        }
+        
+        if (progress >= 100) {
+            progress = 100;
+            clearInterval(uploadProgressInterval);
+        }
+        
+        updateProgressRing(progress);
+        
+    }, 100);
+    
+    return {
+        complete: () => completeUploadProgress(),
+        error: () => errorUploadProgress(),
+        updateText: (text) => { if(statusText) statusText.textContent = text; }
+    };
+}
+
+function updateProgressRing(percentage) {
+    const ringFill = document.getElementById('progressRingFill');
+    const percentageText = document.getElementById('progressPercentage');
+    const circumference = 339.292;
+    const offset = circumference - (percentage / 100) * circumference;
+    
+    if (ringFill) ringFill.style.strokeDashoffset = offset;
+    if (percentageText) percentageText.textContent = Math.round(percentage) + '%';
+}
+
+function setUploadStep(stepNum) {
+    for (let i = 1; i <= 3; i++) {
+        const step = document.getElementById(`step${i}`);
+        const line = document.getElementById(`stepLine${i}`);
+        
+        if (step) {
+            if (i < stepNum) {
+                step.classList.remove('active');
+                step.classList.add('completed');
+                const icon = step.querySelector('.step-icon');
+                if (icon) icon.innerHTML = '✓';
+            } else if (i === stepNum) {
+                step.classList.add('active');
+                step.classList.remove('completed');
+            }
+        }
+        
+        if (line && i < stepNum) {
+            line.classList.add('active');
+        }
+    }
+}
+
+function completeUploadProgress() {
+    clearInterval(uploadProgressInterval);
+    updateProgressRing(100);
+    setUploadStep(4);
+    
+    const overlay = document.getElementById('uploadProgressOverlay');
+    const turbine = document.getElementById('uploadTurbine');
+    const statusText = document.getElementById('uploadStatusText');
+    
+    if (overlay) overlay.classList.add('success');
+    if (turbine) turbine.classList.remove('spinning');
+    if (statusText) statusText.textContent = '✓ Berhasil!';
+    
+    setTimeout(() => {
+        hideUploadProgress();
+    }, 800);
+}
+
+function errorUploadProgress() {
+    clearInterval(uploadProgressInterval);
+    
+    const overlay = document.getElementById('uploadProgressOverlay');
+    const turbine = document.getElementById('uploadTurbine');
+    const statusText = document.getElementById('uploadStatusText');
+    const percentage = document.getElementById('progressPercentage');
+    
+    if (overlay) overlay.classList.add('error');
+    if (turbine) turbine.classList.remove('spinning');
+    if (statusText) statusText.textContent = '✗ Gagal Mengirim';
+    if (percentage) percentage.textContent = 'Error';
+    
+    setTimeout(() => {
+        hideUploadProgress();
+    }, 1500);
+}
+
+function hideUploadProgress() {
+    const overlay = document.getElementById('uploadProgressOverlay');
+    if (overlay) {
+        overlay.classList.add('hidden');
+        overlay.classList.remove('success', 'error');
+    }
+    clearInterval(uploadProgressInterval);
+}
+
+function cancelUpload() {
+    if (currentUploadController) {
+        currentUploadController.abort();
+    }
+    hideUploadProgress();
+    showCustomAlert('Upload dibatalkan', 'warning');
+}
+
+// ============================================
+// UI & NAVIGATION FUNCTIONS
+// ============================================
 window.addEventListener('DOMContentLoaded', () => {
     totalParams = Object.values(AREAS).reduce((acc, arr) => acc + arr.length, 0);
     
@@ -611,6 +774,9 @@ function navigateTo(screenId) {
     }
 }
 
+// ============================================
+// LOGSHEET FUNCTIONS
+// ============================================
 function fetchLastData() {
     updateStatusIndicator(false);
     const timeout = setTimeout(() => renderMenu(), 8000);
@@ -653,7 +819,6 @@ function renderMenu() {
         const percent = Math.round((filled / total) * 100);
         const isCompleted = filled === total && total > 0;
         
-        // Check for abnormal statuses - cek apakah value mengandung ERROR, UPPER, atau NOT_INSTALLED
         const hasAbnormal = params.some(paramName => {
             const val = areaData[paramName] || '';
             const firstLine = val.split('\n')[0];
@@ -759,14 +924,12 @@ function renderProgressDots() {
 }
 
 function jumpToStep(index) {
-    // Simpan data saat ini sebelum pindah
     const fullLabel = AREAS[activeArea][activeIdx];
     const input = document.getElementById('valInput');
     
     if (input && input.value.trim()) {
         if (!currentInput[activeArea]) currentInput[activeArea] = {};
         
-        // Cek apakah ada status abnormal
         const checkedStatus = document.querySelector('input[name="paramStatus"]:checked');
         const note = document.getElementById('statusNote')?.value || '';
         let valueToSave = input.value.trim();
@@ -812,17 +975,12 @@ function getParamName(label) {
     return label.split(' (')[0];
 }
 
-// ============================================
-// ABNORMAL STATUS FUNCTIONS - STACK IN SAME CELL
-// ============================================
-
 function handleStatusChange(checkbox) {
     const chip = checkbox.closest('.status-chip');
     const noteContainer = document.getElementById('statusNoteContainer');
     const fullLabel = AREAS[activeArea][activeIdx];
     const valInput = document.getElementById('valInput');
     
-    // Uncheck others (single select)
     document.querySelectorAll('input[name="paramStatus"]').forEach(cb => {
         if (cb !== checkbox) {
             cb.checked = false;
@@ -830,29 +988,21 @@ function handleStatusChange(checkbox) {
         }
     });
     
-    // Toggle active class
     if (checkbox.checked) {
         chip.classList.add('active');
         if (noteContainer) noteContainer.style.display = 'block';
         
-        // Auto focus ke note jika dipilih
         setTimeout(() => {
             const noteInput = document.getElementById('statusNote');
             if (noteInput) noteInput.focus();
         }, 100);
         
-        // Jika TIDAK TERPASANG, set nilai ke '-' dan disable input
         if (checkbox.value === 'NOT_INSTALLED') {
             if (valInput) {
                 valInput.value = '-';
                 valInput.disabled = true;
                 valInput.style.opacity = '0.5';
                 valInput.style.background = 'rgba(100, 116, 139, 0.2)';
-            }
-        } else {
-            // ERROR atau UPPER, kosongkan input nilai jika belum diisi
-            if (valInput && valInput.value === '') {
-                // Biarkan kosong atau isi 0 tergantung kebutuhan
             }
         }
     } else {
@@ -861,7 +1011,6 @@ function handleStatusChange(checkbox) {
         const noteInput = document.getElementById('statusNote');
         if (noteInput) noteInput.value = '';
         
-        // Enable kembali input nilai
         if (valInput) {
             valInput.value = '';
             valInput.disabled = false;
@@ -871,7 +1020,6 @@ function handleStatusChange(checkbox) {
         }
     }
     
-    // Simpan ke draft
     saveCurrentStatusToDraft();
 }
 
@@ -888,7 +1036,6 @@ function saveCurrentStatusToDraft() {
         valueToSave = input.value.trim();
     }
     
-    // Format: Jika ada status, gabungkan dengan newline
     if (checkedStatus) {
         if (note) {
             valueToSave = `${checkedStatus.value}\n${note}`;
@@ -908,7 +1055,6 @@ function saveCurrentStatusToDraft() {
 }
 
 function loadAbnormalStatus(fullLabel) {
-    // Reset UI
     document.querySelectorAll('input[name="paramStatus"]').forEach(cb => {
         cb.checked = false;
         cb.closest('.status-chip').classList.remove('active');
@@ -919,7 +1065,6 @@ function loadAbnormalStatus(fullLabel) {
     if (noteContainer) noteContainer.style.display = 'none';
     if (noteInput) noteInput.value = '';
     
-    // Enable input nilai default
     const valInput = document.getElementById('valInput');
     if (valInput) {
         valInput.disabled = false;
@@ -928,18 +1073,15 @@ function loadAbnormalStatus(fullLabel) {
         valInput.value = '';
     }
     
-    // Load dari draft jika ada
     if (currentInput[activeArea] && currentInput[activeArea][fullLabel]) {
         const savedValue = currentInput[activeArea][fullLabel];
         const lines = savedValue.split('\n');
         const firstLine = lines[0];
         const secondLine = lines[1] || '';
         
-        // Cek apakah baris pertama adalah status khusus
         const isStatus = ['ERROR', 'UPPER', 'NOT_INSTALLED'].includes(firstLine);
         
         if (isStatus) {
-            // Centang checkbox yang sesuai
             const checkbox = document.querySelector(`input[value="${firstLine}"]`);
             if (checkbox) {
                 checkbox.checked = true;
@@ -947,7 +1089,6 @@ function loadAbnormalStatus(fullLabel) {
                 if (noteContainer) noteContainer.style.display = 'block';
                 if (noteInput) noteInput.value = secondLine;
                 
-                // Jika NOT_INSTALLED, disable input nilai dan set '-'
                 if (firstLine === 'NOT_INSTALLED') {
                     if (valInput) {
                         valInput.value = '-';
@@ -956,18 +1097,14 @@ function loadAbnormalStatus(fullLabel) {
                         valInput.style.background = 'rgba(100, 116, 139, 0.2)';
                     }
                 } else {
-                    // ERROR atau UPPER, kosongkan input nilai (atau bisa diisi manual jika perlu)
                     if (valInput) valInput.value = '';
                 }
             }
         } else {
-            // Bukan status, adalah nilai normal
             if (valInput) valInput.value = savedValue;
         }
     }
 }
-
-// ============================================
 
 function showStep() {
     const fullLabel = AREAS[activeArea][activeIdx];
@@ -989,7 +1126,6 @@ function showStep() {
     if (labelInput) labelInput.textContent = getParamName(fullLabel);
     if (lastTimeLabel) lastTimeLabel.textContent = lastData._lastTime || '--:--';
     
-    // Check if previous value has status (from server)
     let prevVal = lastData[fullLabel] || '--';
     if (prevVal !== '--') {
         const lines = prevVal.toString().split('\n');
@@ -1001,7 +1137,6 @@ function showStep() {
     if (prevValDisplay) prevValDisplay.textContent = prevVal;
     
     if (inputType.type === 'select') {
-        // Ambil nilai tanpa status (line pertama jika ada newline)
         let currentValue = (currentInput[activeArea] && currentInput[activeArea][fullLabel]) || '';
         if (currentValue) {
             const lines = currentValue.split('\n');
@@ -1009,7 +1144,7 @@ function showStep() {
             if (!['ERROR', 'UPPER', 'NOT_INSTALLED'].includes(firstLine)) {
                 currentValue = firstLine;
             } else {
-                currentValue = ''; // Reset jika status, biarkan select kosong
+                currentValue = '';
             }
         }
         
@@ -1036,14 +1171,13 @@ function showStep() {
     } else {
         let currentValue = (currentInput[activeArea] && currentInput[activeArea][fullLabel]) || '';
         
-        // Parse jika ada newline (ambil line pertama sebagai value jika bukan status)
         if (currentValue) {
             const lines = currentValue.split('\n');
             const firstLine = lines[0];
             if (!['ERROR', 'UPPER', 'NOT_INSTALLED'].includes(firstLine)) {
                 currentValue = firstLine;
             } else {
-                currentValue = ''; // Kosongkan jika status, akan dihandle oleh loadAbnormalStatus
+                currentValue = '';
             }
         }
         
@@ -1057,7 +1191,6 @@ function showStep() {
         if (mainInputWrapper) mainInputWrapper.classList.remove('has-select');
     }
     
-    // Load abnormal status (setelah input dibuat)
     loadAbnormalStatus(fullLabel);
     renderProgressDots();
     
@@ -1076,24 +1209,19 @@ function saveStep() {
     
     if (!currentInput[activeArea]) currentInput[activeArea] = {};
     
-    // Get value
     let valueToSave = '';
     if (input && input.value.trim()) {
         valueToSave = input.value.trim();
     }
     
-    // Get abnormal status
     const checkedStatus = document.querySelector('input[name="paramStatus"]:checked');
     const note = document.getElementById('statusNote')?.value || '';
     
-    // Format: Jika ada status, gabungkan dengan newline
     if (checkedStatus) {
-        // Jika NOT_INSTALLED, selalu simpan '-' sebagai nilai
         if (checkedStatus.value === 'NOT_INSTALLED') {
             valueToSave = 'NOT_INSTALLED';
             if (note) valueToSave += '\n' + note;
         } else {
-            // ERROR atau UPPER
             if (note) {
                 valueToSave = `${checkedStatus.value}\n${note}`;
             } else {
@@ -1102,14 +1230,12 @@ function saveStep() {
         }
     }
     
-    // Save to currentInput
     if (valueToSave) {
         currentInput[activeArea][fullLabel] = valueToSave;
     } else {
         delete currentInput[activeArea][fullLabel];
     }
     
-    // Simpan ke localStorage
     localStorage.setItem(DRAFT_KEYS.LOGSHEET, JSON.stringify(currentInput));
     
     if (activeIdx < AREAS[activeArea].length - 1) {
@@ -1122,7 +1248,6 @@ function saveStep() {
 }
 
 function goBack() {
-    // Save current status before going back
     const fullLabel = AREAS[activeArea][activeIdx];
     const input = document.getElementById('valInput');
     
@@ -1133,11 +1258,9 @@ function goBack() {
         valueToSave = input.value.trim();
     }
     
-    // Get abnormal status
     const checkedStatus = document.querySelector('input[name="paramStatus"]:checked');
     const note = document.getElementById('statusNote')?.value || '';
     
-    // Format: Jika ada status, gabungkan dengan newline
     if (checkedStatus) {
         if (checkedStatus.value === 'NOT_INSTALLED') {
             valueToSave = 'NOT_INSTALLED';
@@ -1167,20 +1290,18 @@ function goBack() {
     }
 }
 
+// ============================================
+// SEND TO SHEET (UPDATED WITH PROGRESS)
+// ============================================
 async function sendToSheet() {
     if (!requireAuth()) return;
     
-    const loader = document.getElementById('loader');
-    const loaderText = document.querySelector('.loader-text h3');
-    
-    if (loader) loader.style.display = 'flex';
-    if (loaderText) loaderText.textContent = 'Mengirim Data...';
+    const progress = showUploadProgress('Mengirim Logsheet...');
+    currentUploadController = new AbortController();
     
     let allParameters = {};
     Object.entries(currentInput).forEach(([areaName, params]) => {
         Object.entries(params).forEach(([paramName, value]) => {
-            // Value sudah dalam format: "NILAI" atau "ERROR\nnote" atau "UPPER\nnote" atau "NOT_INSTALLED\nnote"
-            // Langsung kirim saja, Google Sheets akan menampilkan multiline jika ada \n
             allParameters[paramName] = value;
         });
     });
@@ -1198,11 +1319,12 @@ async function sendToSheet() {
         await fetch(GAS_URL, {
             method: 'POST',
             mode: 'no-cors',
-            headers: { 
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(finalData)
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(finalData),
+            signal: currentUploadController.signal
         });
+        
+        progress.complete();
         
         showCustomAlert('✓ Data berhasil dikirim ke sistem!', 'success');
         
@@ -1211,20 +1333,25 @@ async function sendToSheet() {
         
         setTimeout(() => {
             navigateTo('homeScreen');
-        }, 2000);
+        }, 1500);
         
     } catch (error) {
         console.error('Error sending data:', error);
-        showCustomAlert('Gagal mengirim data. Data disimpan lokal.', 'error');
+        progress.error();
         
         let offlineData = JSON.parse(localStorage.getItem(DRAFT_KEYS.LOGSHEET_OFFLINE) || '[]');
         offlineData.push(finalData);
         localStorage.setItem(DRAFT_KEYS.LOGSHEET_OFFLINE, JSON.stringify(offlineData));
-    } finally {
-        if (loader) loader.style.display = 'none';
+        
+        setTimeout(() => {
+            showCustomAlert('Gagal mengirim. Data disimpan lokal.', 'error');
+        }, 500);
     }
 }
 
+// ============================================
+// TPM FUNCTIONS
+// ============================================
 function updateTPMUserInfo() {
     if (!currentUser) return;
     
@@ -1340,6 +1467,9 @@ function selectTPMStatus(status) {
     }
 }
 
+// ============================================
+// SUBMIT TPM (UPDATED WITH PROGRESS)
+// ============================================
 async function submitTPMData() {
     if (!requireAuth()) return;
     
@@ -1361,11 +1491,11 @@ async function submitTPMData() {
         return;
     }
     
-    const loader = document.getElementById('loader');
-    const loaderText = document.querySelector('.loader-text h3');
+    const progress = showUploadProgress('Mengupload TPM & Foto...');
+    progress.updateText('Mengompresi foto...');
     
-    if (loader) loader.style.display = 'flex';
-    if (loaderText) loaderText.textContent = 'Mengupload TPM...';
+    await new Promise(resolve => setTimeout(resolve, 800));
+    progress.updateText('Mengirim data...');
     
     const tpmData = {
         type: 'TPM',
@@ -1386,6 +1516,8 @@ async function submitTPMData() {
             body: JSON.stringify(tpmData)
         });
         
+        progress.complete();
+        
         let tpmHistory = JSON.parse(localStorage.getItem(DRAFT_KEYS.TPM_HISTORY) || '[]');
         tpmHistory.push({...tpmData, photo: '[UPLOADED]'});
         localStorage.setItem(DRAFT_KEYS.TPM_HISTORY, JSON.stringify(tpmHistory));
@@ -1394,22 +1526,24 @@ async function submitTPMData() {
         currentTPMPhoto = null;
         currentTPMStatus = '';
         
-        setTimeout(() => navigateTo('tpmScreen'), 2000);
+        setTimeout(() => navigateTo('tpmScreen'), 1500);
         
     } catch (error) {
+        progress.error();
+        
         let offlineTPM = JSON.parse(localStorage.getItem(DRAFT_KEYS.TPM_OFFLINE) || '[]');
         offlineTPM.push(tpmData);
         localStorage.setItem(DRAFT_KEYS.TPM_OFFLINE, JSON.stringify(offlineTPM));
-        showCustomAlert('Gagal mengupload. Data disimpan lokal.', 'error');
-    } finally {
-        if (loader) loader.style.display = 'none';
+        
+        setTimeout(() => {
+            showCustomAlert('Gagal mengupload. Data disimpan lokal.', 'error');
+        }, 500);
     }
 }
 
 // ============================================
 // BALANCING FUNCTIONS
 // ============================================
-
 function saveBalancingDraft() {
     try {
         const draftData = {};
@@ -1979,6 +2113,9 @@ function formatWhatsAppMessage(data) {
     return message;
 }
 
+// ============================================
+// SUBMIT BALANCING (UPDATED WITH PROGRESS)
+// ============================================
 async function submitBalancingData() {
     if (!requireAuth()) return;
     
@@ -1992,10 +2129,8 @@ async function submitBalancingData() {
         }
     }
     
-    const loader = document.getElementById('loader');
-    const loaderText = document.querySelector('.loader-text h3');
-    if (loader) loader.style.display = 'flex';
-    if (loaderText) loaderText.textContent = 'Mengirim Data Balancing...';
+    const progress = showUploadProgress('Mengirim Data Balancing...');
+    currentUploadController = new AbortController();
     
     const eksporValue = getEksporImporValue();
     const lpBalance = calculateLPBalance();
@@ -2060,12 +2195,19 @@ async function submitBalancingData() {
     };
     
     try {
+        progress.updateText('Menghitung ulang balance...');
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        progress.updateText('Mengirim ke server...');
         await fetch(GAS_URL, {
             method: 'POST',
             mode: 'no-cors',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(balancingData)
+            body: JSON.stringify(balancingData),
+            signal: currentUploadController.signal
         });
+        
+        progress.complete();
         
         showCustomAlert('✓ Data Balancing berhasil dikirim!', 'success');
         
@@ -2076,30 +2218,30 @@ async function submitBalancingData() {
         });
         localStorage.setItem(DRAFT_KEYS.BALANCING_HISTORY, JSON.stringify(balancingHistory));
         
-        const waMessage = encodeURIComponent(formatWhatsAppMessage(balancingData));
-        const waNumber = '6282233069673';
         setTimeout(() => {
+            const waMessage = encodeURIComponent(formatWhatsAppMessage(balancingData));
+            const waNumber = '6282233069673';
             window.open(`https://wa.me/${waNumber}?text=${waMessage}`, '_blank');
-        }, 1200);
-        
-        setTimeout(() => {
             navigateTo('homeScreen');
-        }, 2000);
+        }, 1000);
         
     } catch (error) {
         console.error('Balancing Error:', error);
+        progress.error();
         
         let offlineBalancing = JSON.parse(localStorage.getItem(DRAFT_KEYS.BALANCING_OFFLINE) || '[]');
         offlineBalancing.push(balancingData);
         localStorage.setItem(DRAFT_KEYS.BALANCING_OFFLINE, JSON.stringify(offlineBalancing));
         
-        showCustomAlert('Gagal mengirim. Data disimpan lokal.', 'error');
-    } finally {
-        if (loader) loader.style.display = 'none';
+        setTimeout(() => {
+            showCustomAlert('Gagal mengirim. Data disimpan lokal.', 'error');
+        }, 500);
     }
 }
 
-// PWA Install Handler
+// ============================================
+// PWA INSTALL HANDLER
+// ============================================
 let deferredPrompt = null;
 let installBannerShown = false;
 
@@ -2316,3 +2458,12 @@ document.addEventListener('keydown', (e) => {
         goBack();
     }
 });
+
+// Toggle SS2000 Detail visibility
+function toggleSS2000Detail() {
+    const select = document.getElementById('ss2000Via');
+    const detail = document.getElementById('ss2000Detail');
+    if (select && detail) {
+        detail.style.display = select.value ? 'block' : 'none';
+    }
+}
