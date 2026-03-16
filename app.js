@@ -1,7 +1,7 @@
 // ============================================
 // TURBINE LOGSHEET PRO - VERSION CONTROL
 // ============================================
-const APP_VERSION = '1.2.9'; 
+const APP_VERSION = '1.3.0'; 
 
 // ============================================
 // CONFIGURATION & CONSTANTS
