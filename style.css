@@ -1677,3 +1677,220 @@ html {
     color: #64748b;
     text-decoration: line-through;
 }
+/* Upload Progress Overlay Styles */
+.upload-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.95);
+    backdrop-filter: blur(10px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10002;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s ease;
+}
+
+.upload-overlay.hidden {
+    display: none !important;
+}
+
+.upload-overlay:not(.hidden) {
+    opacity: 1;
+    visibility: visible;
+}
+
+.upload-content {
+    text-align: center;
+    padding: 32px;
+    max-width: 320px;
+    width: 100%;
+}
+
+/* Circular Progress Ring */
+.progress-ring-container {
+    position: relative;
+    width: 120px;
+    height: 120px;
+    margin: 0 auto 24px;
+}
+
+.progress-ring {
+    transform: rotate(-90deg);
+    width: 120px;
+    height: 120px;
+}
+
+.progress-ring-bg {
+    fill: none;
+    stroke: rgba(148, 163, 184, 0.2);
+    stroke-width: 6;
+}
+
+.progress-ring-fill {
+    fill: none;
+    stroke: #0ea5e9;
+    stroke-width: 6;
+    stroke-linecap: round;
+    stroke-dasharray: 339.292;
+    stroke-dashoffset: 339.292;
+    transition: stroke-dashoffset 0.3s ease;
+}
+
+.progress-percentage {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #f8fafc;
+    text-shadow: 0 0 20px rgba(14, 165, 233, 0.5);
+}
+
+.turbine-mini {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.turbine-mini.spinning {
+    opacity: 1;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: translate(-50%, -50%) rotate(0deg); }
+    to { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+/* Upload Status Text */
+.upload-status h3 {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: #f8fafc;
+    margin-bottom: 20px;
+    min-height: 28px;
+}
+
+/* Step Indicators */
+.upload-steps {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 24px;
+}
+
+.step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    opacity: 0.4;
+    transition: all 0.3s ease;
+}
+
+.step.active {
+    opacity: 1;
+}
+
+.step.completed {
+    opacity: 1;
+}
+
+.step-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: rgba(148, 163, 184, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #94a3b8;
+    border: 2px solid transparent;
+    transition: all 0.3s ease;
+}
+
+.step.active .step-icon {
+    background: rgba(14, 165, 233, 0.2);
+    color: #0ea5e9;
+    border-color: #0ea5e9;
+    box-shadow: 0 0 10px rgba(14, 165, 233, 0.3);
+}
+
+.step.completed .step-icon {
+    background: #10b981;
+    color: white;
+    border-color: #10b981;
+}
+
+.step span {
+    font-size: 0.6875rem;
+    color: #94a3b8;
+    font-weight: 500;
+}
+
+.step-line {
+    width: 24px;
+    height: 2px;
+    background: rgba(148, 163, 184, 0.2);
+    border-radius: 1px;
+    transition: all 0.3s ease;
+}
+
+.step-line.active {
+    background: #0ea5e9;
+    box-shadow: 0 0 6px rgba(14, 165, 233, 0.5);
+}
+
+/* Cancel Button */
+.btn-cancel-upload {
+    padding: 10px 24px;
+    background: rgba(239, 68, 68, 0.1);
+    color: #f87171;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: 20px;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-cancel-upload:hover {
+    background: rgba(239, 68, 68, 0.2);
+    transform: translateY(-1px);
+}
+
+/* Pulse Animation for Active State */
+@keyframes pulse-ring {
+    0% { box-shadow: 0 0 0 0 rgba(14, 165, 233, 0.4); }
+    70% { box-shadow: 0 0 0 10px rgba(14, 165, 233, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(14, 165, 233, 0); }
+}
+
+.progress-ring-container.pulsing {
+    animation: pulse-ring 2s infinite;
+}
+
+/* Success State */
+.upload-overlay.success .progress-ring-fill {
+    stroke: #10b981;
+}
+
+.upload-overlay.success .progress-percentage {
+    color: #10b981;
+}
+
+.upload-overlay.error .progress-ring-fill {
+    stroke: #ef4444;
+}
+
+.upload-overlay.error .progress-percentage {
+    color: #ef4444;
+}
