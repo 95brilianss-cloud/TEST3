@@ -1,16 +1,24 @@
-// ============================================
-// TURBINE LOGSHEET PRO - VERSION CONTROL
-// ============================================
-const APP_VERSION = '1.3.2'; 
+/**
+ * =============================================================================
+ * TURBINE LOGSHEET PRO - FRONTEND CORE
+ * Version: 2.0.0 Final (Secure Auth Edition)
+ * =============================================================================
+ */
 
 // ============================================
 // CONFIGURATION & CONSTANTS
 // ============================================
+const APP_VERSION = '1.3.3';
+const GAS_URL = "https://script.google.com/macros/s/AKfycbxHFKuGztYJIHLn8thneJbgGHACUsE3nEDQWyUh2xBa8mTY_WuGh8ZmRX7MVKMbAVl4/exec";
+
 const AUTH_CONFIG = {
-    SESSION_KEY: 'turbine_session',
-    USER_KEY: 'turbine_user',
-    SESSION_DURATION: 8 * 60 * 60 * 1000,
-    REMEMBER_ME_DURATION: 30 * 24 * 60 * 60 * 1000
+    SESSION_KEY: 'turbine_session_v2',
+    USER_KEY: 'turbine_user_v2',
+    SESSION_DURATION: 8 * 60 * 60 * 1000, // 8 jam
+    MAX_LOGIN_ATTEMPTS: 5,
+    LOCKOUT_KEY: 'login_lockout_until',
+    FAILED_ATTEMPTS_KEY: 'failed_login_count',
+    PASSWORD_MIN_LENGTH: 4
 };
 
 const DRAFT_KEYS = {
@@ -39,8 +47,6 @@ const BALANCING_FIELDS = [
     'ctSuFan', 'ctSuPompa', 'ctSaFan', 'ctSaPompa',
     'kegiatanShift'
 ];
-
-const GAS_URL = "https://script.google.com/macros/s/AKfycbwZfKzCXuFVRxqYCnhY90Y8ejFFDSJxdHyp8DxN5shCgfI__0d25E0EIWbEi3pPgnsT/exec";
 
 const INPUT_TYPES = {
     PUMP_STATUS: {
@@ -207,7 +213,7 @@ let uploadProgressInterval = null;
 let currentUploadController = null;
 
 // ============================================
-// SERVICE WORKER
+// SERVICE WORKER REGISTRATION
 // ============================================
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
@@ -234,9 +240,19 @@ if ('serviceWorker' in navigator) {
 }
 
 // ============================================
-// AUTHENTICATION FUNCTIONS
+// ENHANCED AUTHENTICATION SYSTEM
 // ============================================
+
+/**
+ * Inisialisasi Autentikasi - Check existing session
+ */
 function initAuth() {
+    // Check client-side lockout first
+    if (isClientLockedOut()) {
+        showClientLockoutScreen();
+        return;
+    }
+    
     const session = getSession();
     
     if (session && isSessionValid(session)) {
@@ -265,12 +281,13 @@ function getSession() {
 }
 
 function saveSession(user, rememberMe = false) {
-    const duration = rememberMe ? AUTH_CONFIG.REMEMBER_ME_DURATION : AUTH_CONFIG.SESSION_DURATION;
+    const duration = rememberMe ? (30 * 24 * 60 * 60 * 1000) : AUTH_CONFIG.SESSION_DURATION;
     const session = {
         user: user,
         loginTime: Date.now(),
         expiresAt: Date.now() + duration,
-        rememberMe: rememberMe
+        rememberMe: rememberMe,
+        sessionToken: user.sessionToken || null
     };
     
     try {
@@ -283,7 +300,15 @@ function saveSession(user, rememberMe = false) {
 
 function isSessionValid(session) {
     if (!session || !session.expiresAt) return false;
-    return Date.now() < session.expiresAt;
+    if (Date.now() > session.expiresAt) return false;
+    
+    // Validate token presence (if using token-based auth)
+    if (session.user && !session.user.sessionToken) {
+        // Backward compatibility: accept old format but refresh
+        return true;
+    }
+    
+    return true;
 }
 
 function clearSession() {
@@ -293,70 +318,280 @@ function clearSession() {
     isAuthenticated = false;
 }
 
-function loginOperator() {
-    const nameInput = document.getElementById('operatorName');
-    const errorMsg = document.getElementById('loginError');
-    
-    if (!nameInput) {
-        console.error('Login input not found');
-        return;
-    }
-    
-    const operatorName = nameInput.value.trim();
-    
-    if (!operatorName) {
-        if (errorMsg) {
-            errorMsg.textContent = 'Nama operator wajib diisi!';
-            errorMsg.style.display = 'block';
+/**
+ * Client-Side Lockout Management
+ */
+function isClientLockedOut() {
+    const lockoutUntil = localStorage.getItem(AUTH_CONFIG.LOCKOUT_KEY);
+    if (lockoutUntil) {
+        const now = Date.now();
+        if (now < parseInt(lockoutUntil)) {
+            return true;
+        } else {
+            // Clear expired lockout
+            localStorage.removeItem(AUTH_CONFIG.LOCKOUT_KEY);
+            localStorage.removeItem(AUTH_CONFIG.FAILED_ATTEMPTS_KEY);
         }
-        nameInput.focus();
-        nameInput.classList.add('error');
-        return;
     }
+    return false;
+}
+
+function showClientLockoutScreen() {
+    const lockoutUntil = parseInt(localStorage.getItem(AUTH_CONFIG.LOCKOUT_KEY));
+    const remainingMinutes = Math.ceil((lockoutUntil - Date.now()) / 60000);
     
-    if (operatorName.length < 3) {
-        if (errorMsg) {
-            errorMsg.textContent = 'Nama minimal 3 karakter!';
-            errorMsg.style.display = 'block';
-        }
-        nameInput.focus();
-        nameInput.classList.add('error');
-        return;
-    }
+    showLoginError(`Akun terkunci. Tunggu ${remainingMinutes} menit.`, 'locked');
     
-    if (errorMsg) errorMsg.style.display = 'none';
-    nameInput.classList.remove('error');
+    // Disable inputs
+    const inputs = document.querySelectorAll('#loginScreen input, #loginScreen button');
+    inputs.forEach(el => {
+        if (!el.classList.contains('alert-btn')) el.disabled = true;
+    });
     
-    const user = {
-        name: operatorName,
-        id: 'OP-' + Date.now().toString(36).toUpperCase(),
-        loginTime: new Date().toISOString(),
-        role: 'operator'
-    };
-    
-    saveSession(user, false);
-    currentUser = user;
-    isAuthenticated = true;
-    
-    showCustomAlert(`Selamat datang, ${operatorName}!`, 'success');
-    
+    // Re-enable after lockout
     setTimeout(() => {
-        updateUIForAuthenticatedUser();
-        navigateTo('homeScreen');
-        loadUserStats();
-    }, 800);
+        inputs.forEach(el => el.disabled = false);
+        hideLoginError();
+    }, remainingMinutes * 60000);
+}
+
+function setClientLockout(minutes) {
+    const until = Date.now() + (minutes * 60000);
+    localStorage.setItem(AUTH_CONFIG.LOCKOUT_KEY, until.toString());
+}
+
+/**
+ * Setup Login Listeners
+ */
+function setupLoginListeners() {
+    const nameInput = document.getElementById('operatorName');
+    const passInput = document.getElementById('operatorPassword');
+    
+    if (nameInput) {
+        nameInput.addEventListener('input', () => {
+            nameInput.classList.remove('error');
+            hideLoginError();
+        });
+        nameInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && passInput) passInput.focus();
+        });
+    }
+    
+    if (passInput) {
+        passInput.addEventListener('input', () => {
+            passInput.classList.remove('error');
+            hideLoginError();
+        });
+        passInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') loginOperator();
+        });
+    }
+    
+    // Toggle password visibility
+    const toggleBtn = document.getElementById('togglePassword');
+    if (toggleBtn && passInput) {
+        toggleBtn.addEventListener('click', () => {
+            const type = passInput.getAttribute('type') === 'password' ? 'text' : 'password';
+            passInput.setAttribute('type', type);
+            toggleBtn.textContent = type === 'password' ? '👁️' : '🙈';
+        });
+    }
+}
+
+function hideLoginError() {
+    const errorMsg = document.getElementById('loginError');
+    if (errorMsg) {
+        errorMsg.style.display = 'none';
+        errorMsg.textContent = '';
+        errorMsg.className = 'login-error';
+    }
+}
+
+function showLoginError(message, type = 'error') {
+    const errorMsg = document.getElementById('loginError');
+    if (!errorMsg) return;
+    
+    errorMsg.textContent = message;
+    errorMsg.style.display = 'block';
+    
+    if (type === 'warning') {
+        errorMsg.style.color = 'var(--warning)';
+        errorMsg.style.background = 'rgba(245, 158, 11, 0.1)';
+        errorMsg.style.borderColor = 'rgba(245, 158, 11, 0.2)';
+    } else if (type === 'locked') {
+        errorMsg.style.color = 'var(--danger)';
+        errorMsg.style.background = 'rgba(239, 68, 68, 0.15)';
+        errorMsg.style.borderColor = 'var(--danger)';
+        errorMsg.style.fontWeight = '600';
+    } else {
+        errorMsg.style.color = 'var(--danger)';
+        errorMsg.style.background = 'rgba(239, 68, 68, 0.1)';
+        errorMsg.style.borderColor = 'rgba(239, 68, 68, 0.2)';
+    }
+}
+
+/**
+ * Main Login Function - With Backend Verification
+ */
+async function loginOperator() {
+    // Check client lockout
+    if (isClientLockedOut()) {
+        showClientLockoutScreen();
+        return;
+    }
+    
+    const nameInput = document.getElementById('operatorName');
+    const passInput = document.getElementById('operatorPassword');
+    const loginBtn = document.querySelector('#loginScreen .btn-primary');
+    
+    if (!nameInput || !passInput) {
+        console.error('Login inputs not found');
+        return;
+    }
+    
+    const username = nameInput.value.trim();
+    const password = passInput.value;
+    
+    // Validation
+    if (!username || !password) {
+        showLoginError('Username dan password wajib diisi!');
+        if (!username) nameInput.focus();
+        else passInput.focus();
+        return;
+    }
+    
+    if (username.length < 3) {
+        showLoginError('Username minimal 3 karakter!');
+        nameInput.focus();
+        return;
+    }
+    
+    if (password.length < AUTH_CONFIG.PASSWORD_MIN_LENGTH) {
+        showLoginError(`Password minimal ${AUTH_CONFIG.PASSWORD_MIN_LENGTH} karakter!`);
+        passInput.focus();
+        return;
+    }
+    
+    // Show loading state
+    const originalBtnText = loginBtn ? loginBtn.innerHTML : '';
+    if (loginBtn) {
+        loginBtn.disabled = true;
+        loginBtn.innerHTML = '<span class="spinner"></span> Memverifikasi...';
+    }
+    
+    try {
+        // Get client IP (optional, for logging)
+        const clientIP = await getClientIP().catch(() => 'unknown');
+        
+        // Send to backend via HTTPS (CORS mode for JSON response)
+        const response = await fetch(GAS_URL, {
+            method: 'POST',
+            mode: 'cors',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                type: 'LOGIN',
+                username: username,
+                password: password,
+                clientIP: clientIP,
+                timestamp: new Date().toISOString(),
+                clientVersion: APP_VERSION
+            })
+        });
+        
+        // Handle HTTP errors
+        if (response.status === 429) {
+            throw { error: 'too_many_requests', message: 'Terlalu banyak request. Silakan tunggu.' };
+        }
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            // Success - clear any failed attempts
+            localStorage.removeItem(AUTH_CONFIG.FAILED_ATTEMPTS_KEY);
+            
+            // Save session
+            saveSession(result.user, false);
+            currentUser = result.user;
+            isAuthenticated = true;
+            
+            showCustomAlert(`Selamat datang, ${username}!`, 'success');
+            
+            setTimeout(() => {
+                updateUIForAuthenticatedUser();
+                navigateTo('homeScreen');
+                loadUserStats();
+            }, 800);
+            
+        } else {
+            // Handle specific backend errors
+            handleBackendLoginError(result, username);
+        }
+        
+    } catch (error) {
+        console.error('Login error:', error);
+        
+        // Network error or parsing error
+        if (error.error === 'too_many_requests') {
+            showLoginError(error.message, 'warning');
+        } else {
+            showLoginError('Gagal terhubung ke server. Periksa koneksi internet.', 'warning');
+        }
+        
+    } finally {
+        if (loginBtn) {
+            loginBtn.disabled = false;
+            loginBtn.innerHTML = originalBtnText;
+        }
+    }
+}
+
+function handleBackendLoginError(result, username) {
+    const failedAttempts = parseInt(localStorage.getItem(AUTH_CONFIG.FAILED_ATTEMPTS_KEY) || '0') + 1;
+    localStorage.setItem(AUTH_CONFIG.FAILED_ATTEMPTS_KEY, failedAttempts.toString());
+    
+    if (result.error === 'account_locked' || result.lockoutMinutes) {
+        // Server imposed lockout
+        setClientLockout(result.lockoutMinutes || 30);
+        showClientLockoutScreen();
+        
+    } else if (result.error === 'too_many_requests') {
+        showLoginError(result.message || 'Terlalu banyak percobaan. Silakan tunggu.', 'warning');
+        
+    } else if (result.error === 'account_inactive') {
+        showLoginError('Akun tidak aktif. Hubungi administrator.', 'locked');
+        
+    } else {
+        // Generic auth failure
+        let msg = result.message || 'Username atau password salah';
+        if (result.warning) {
+            msg += ` (${result.warning})`;
+        }
+        showLoginError(msg);
+        
+        // Check if we should client-lock based on accumulated failures
+        if (failedAttempts >= AUTH_CONFIG.MAX_LOGIN_ATTEMPTS) {
+            setClientLockout(30);
+            showClientLockoutScreen();
+        }
+    }
 }
 
 function logoutOperator() {
     if (confirm('Apakah Anda yakin ingin keluar?')) {
+        // Backup drafts before logout
         if (Object.keys(currentInput).length > 0) {
             localStorage.setItem(DRAFT_KEYS.LOGSHEET_BACKUP, JSON.stringify(currentInput));
         }
         
         clearSession();
         
+        // Clear inputs
         const nameInput = document.getElementById('operatorName');
+        const passInput = document.getElementById('operatorPassword');
         if (nameInput) nameInput.value = '';
+        if (passInput) passInput.value = '';
         
         showLoginScreen();
         showCustomAlert('Anda telah keluar dari sistem.', 'success');
@@ -364,15 +599,17 @@ function logoutOperator() {
 }
 
 function showLoginScreen() {
-    document.querySelectorAll('.screen').forEach(s => {
-        s.classList.remove('active');
-    });
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     
     const loginScreen = document.getElementById('loginScreen');
     if (loginScreen) {
         loginScreen.classList.add('active');
+        // Re-enable inputs if they were disabled by lockout
+        const inputs = loginScreen.querySelectorAll('input, button');
+        inputs.forEach(el => el.disabled = false);
     }
     
+    // Pre-fill username if remembered
     const savedUser = localStorage.getItem(AUTH_CONFIG.USER_KEY);
     if (savedUser) {
         try {
@@ -403,6 +640,11 @@ function updateUIForAuthenticatedUser() {
         const el = document.getElementById(id);
         if (el) el.textContent = currentUser.name;
     });
+    
+    // Show admin features if applicable
+    if (currentUser.role === 'admin') {
+        document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'block');
+    }
 }
 
 function requireAuth() {
@@ -415,31 +657,73 @@ function requireAuth() {
     return true;
 }
 
-function loadUserStats() {
-    const totalAreas = Object.keys(AREAS).length;
-    let completedAreas = 0;
-    
-    Object.entries(AREAS).forEach(([areaName, params]) => {
-        const filled = currentInput[areaName] ? Object.keys(currentInput[areaName]).length : 0;
-        if (filled === params.length && filled > 0) completedAreas++;
-    });
-    
-    const statProgress = document.getElementById('statProgress');
-    const statAreas = document.getElementById('statAreas');
-    
-    if (statProgress) {
-        const percent = Math.round((completedAreas / totalAreas) * 100);
-        statProgress.textContent = `${percent}%`;
-    }
-    
-    if (statAreas) {
-        statAreas.textContent = `${completedAreas}/${totalAreas}`;
+async function getClientIP() {
+    try {
+        const response = await fetch('https://api.ipify.org?format=json');
+        const data = await response.json();
+        return data.ip;
+    } catch (e) {
+        return 'unknown';
     }
 }
 
 // ============================================
-// UPLOAD PROGRESS MANAGER (BARU)
+// BATCH REGISTRATION (Admin Only)
 // ============================================
+
+/**
+ * Batch Register Users - Requires Admin Authentication
+ * @param {Array} usersArray - Array of {username, password, role}
+ * @param {string} adminPassword - Current admin password for verification
+ */
+async function batchRegisterUsers(usersArray, adminPassword) {
+    if (!currentUser || currentUser.role !== 'admin') {
+        showCustomAlert('Hanya admin yang dapat menggunakan fitur ini!', 'error');
+        return;
+    }
+    
+    try {
+        const response = await fetch(GAS_URL, {
+            method: 'POST',
+            mode: 'cors',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                type: 'BATCH_REGISTER',
+                adminUsername: currentUser.name,
+                adminPassword: adminPassword,
+                users: usersArray
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showCustomAlert(
+                `Registrasi berhasil! ${result.successful} dari ${result.processed} user didaftarkan.`, 
+                'success'
+            );
+        } else {
+            showCustomAlert(result.message || 'Gagal melakukan registrasi', 'error');
+        }
+        
+        return result;
+        
+    } catch (error) {
+        console.error('Batch registration error:', error);
+        showCustomAlert('Gagal terhubung ke server', 'error');
+        return {
+            success: false,
+            error: 'network_error'
+        };
+    }
+}
+
+// ============================================
+// UPLOAD PROGRESS MANAGER
+// ============================================
+
 function showUploadProgress(title = 'Mengupload Data...') {
     const overlay = document.getElementById('uploadProgressOverlay');
     const percentage = document.getElementById('progressPercentage');
@@ -447,7 +731,6 @@ function showUploadProgress(title = 'Mengupload Data...') {
     const turbine = document.getElementById('uploadTurbine');
     const statusText = document.getElementById('uploadStatusText');
     
-    // Reset states
     overlay.classList.remove('hidden', 'success', 'error');
     percentage.textContent = '0%';
     ringFill.style.strokeDashoffset = 339.292;
@@ -461,7 +744,6 @@ function showUploadProgress(title = 'Mengupload Data...') {
     });
     document.querySelectorAll('.step-line').forEach(line => line.classList.remove('active'));
     
-    // Start simulated progress
     let progress = 0;
     let currentStep = 1;
     
@@ -490,7 +772,6 @@ function showUploadProgress(title = 'Mengupload Data...') {
         }
         
         updateProgressRing(progress);
-        
     }, 100);
     
     return {
@@ -527,9 +808,7 @@ function setUploadStep(stepNum) {
             }
         }
         
-        if (line && i < stepNum) {
-            line.classList.add('active');
-        }
+        if (line && i < stepNum) line.classList.add('active');
     }
 }
 
@@ -546,9 +825,7 @@ function completeUploadProgress() {
     if (turbine) turbine.classList.remove('spinning');
     if (statusText) statusText.textContent = '✓ Berhasil!';
     
-    setTimeout(() => {
-        hideUploadProgress();
-    }, 800);
+    setTimeout(() => hideUploadProgress(), 800);
 }
 
 function errorUploadProgress() {
@@ -564,9 +841,7 @@ function errorUploadProgress() {
     if (statusText) statusText.textContent = '✗ Gagal Mengirim';
     if (percentage) percentage.textContent = 'Error';
     
-    setTimeout(() => {
-        hideUploadProgress();
-    }, 1500);
+    setTimeout(() => hideUploadProgress(), 1500);
 }
 
 function hideUploadProgress() {
@@ -579,9 +854,7 @@ function hideUploadProgress() {
 }
 
 function cancelUpload() {
-    if (currentUploadController) {
-        currentUploadController.abort();
-    }
+    if (currentUploadController) currentUploadController.abort();
     hideUploadProgress();
     showCustomAlert('Upload dibatalkan', 'warning');
 }
@@ -589,13 +862,12 @@ function cancelUpload() {
 // ============================================
 // UI & NAVIGATION FUNCTIONS
 // ============================================
+
 window.addEventListener('DOMContentLoaded', () => {
     totalParams = Object.values(AREAS).reduce((acc, arr) => acc + arr.length, 0);
     
     const versionDisplay = document.getElementById('versionDisplay');
-    if (versionDisplay) {
-        versionDisplay.textContent = APP_VERSION;
-    }
+    if (versionDisplay) versionDisplay.textContent = APP_VERSION;
     
     initAuth();
     setupLoginListeners();
@@ -604,28 +876,9 @@ window.addEventListener('DOMContentLoaded', () => {
     simulateLoading();
 });
 
-function setupLoginListeners() {
-    const nameInput = document.getElementById('operatorName');
-    if (nameInput) {
-        nameInput.addEventListener('input', () => {
-            nameInput.classList.remove('error');
-            const errorMsg = document.getElementById('loginError');
-            if (errorMsg) errorMsg.style.display = 'none';
-        });
-        
-        nameInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                loginOperator();
-            }
-        });
-    }
-}
-
 function setupTPMListeners() {
     const tpmCamera = document.getElementById('tpmCamera');
-    if (tpmCamera) {
-        tpmCamera.addEventListener('change', handleTPMPhoto);
-    }
+    if (tpmCamera) tpmCamera.addEventListener('change', handleTPMPhoto);
 }
 
 function simulateLoading() {
@@ -639,10 +892,7 @@ function simulateLoading() {
             setTimeout(() => {
                 const loader = document.getElementById('loader');
                 if (loader) loader.style.display = 'none';
-                
-                if (isAuthenticated) {
-                    renderMenu();
-                }
+                if (isAuthenticated) renderMenu();
             }, 500);
         }
         if (loaderProgress) loaderProgress.style.width = progress + '%';
@@ -668,7 +918,6 @@ function showCustomAlert(msg, type = 'success') {
     const customAlert = document.getElementById('customAlert');
     
     if (!customAlert || !alertContent || !alertTitle || !alertIconWrapper) {
-        console.error('Alert elements not found');
         alert(msg);
         return;
     }
@@ -745,9 +994,7 @@ function closeAlert() {
 
 function navigateTo(screenId) {
     const protectedScreens = ['homeScreen', 'areaListScreen', 'paramScreen', 'tpmScreen', 'tpmInputScreen', 'balancingScreen'];
-    if (protectedScreens.includes(screenId) && !requireAuth()) {
-        return;
-    }
+    if (protectedScreens.includes(screenId) && !requireAuth()) return;
     
     document.querySelectorAll('.screen').forEach(s => {
         s.classList.remove('active');
@@ -761,9 +1008,7 @@ function navigateTo(screenId) {
         
         if (screenId === 'tpmScreen' || screenId === 'tpmInputScreen') {
             updateTPMUserInfo();
-        }
-        
-        if (screenId === 'areaListScreen') {
+        } else if (screenId === 'areaListScreen') {
             fetchLastData();
             updateOverallProgress();
         } else if (screenId === 'homeScreen') {
@@ -774,9 +1019,29 @@ function navigateTo(screenId) {
     }
 }
 
+function loadUserStats() {
+    const totalAreas = Object.keys(AREAS).length;
+    let completedAreas = 0;
+    
+    Object.entries(AREAS).forEach(([areaName, params]) => {
+        const filled = currentInput[areaName] ? Object.keys(currentInput[areaName]).length : 0;
+        if (filled === params.length && filled > 0) completedAreas++;
+    });
+    
+    const statProgress = document.getElementById('statProgress');
+    const statAreas = document.getElementById('statAreas');
+    
+    if (statProgress) {
+        const percent = Math.round((completedAreas / totalAreas) * 100);
+        statProgress.textContent = `${percent}%`;
+    }
+    if (statAreas) statAreas.textContent = `${completedAreas}/${totalAreas}`;
+}
+
 // ============================================
 // LOGSHEET FUNCTIONS
 // ============================================
+
 function fetchLastData() {
     updateStatusIndicator(false);
     const timeout = setTimeout(() => renderMenu(), 8000);
@@ -887,7 +1152,6 @@ function updateOverallProgressUI(completedAreas, totalAreas) {
 
 function openArea(areaName) {
     if (!requireAuth()) return;
-    
     activeArea = areaName;
     activeIdx = 0;
     navigateTo('paramScreen');
@@ -935,11 +1199,8 @@ function jumpToStep(index) {
         let valueToSave = input.value.trim();
         
         if (checkedStatus) {
-            if (note) {
-                valueToSave = `${checkedStatus.value}\n${note}`;
-            } else {
-                valueToSave = checkedStatus.value;
-            }
+            if (note) valueToSave = `${checkedStatus.value}\n${note}`;
+            else valueToSave = checkedStatus.value;
         }
         
         currentInput[activeArea][fullLabel] = valueToSave;
@@ -1032,23 +1293,15 @@ function saveCurrentStatusToDraft() {
     if (!currentInput[activeArea]) currentInput[activeArea] = {};
     
     let valueToSave = '';
-    if (input && input.value.trim()) {
-        valueToSave = input.value.trim();
-    }
+    if (input && input.value.trim()) valueToSave = input.value.trim();
     
     if (checkedStatus) {
-        if (note) {
-            valueToSave = `${checkedStatus.value}\n${note}`;
-        } else {
-            valueToSave = checkedStatus.value;
-        }
+        if (note) valueToSave = `${checkedStatus.value}\n${note}`;
+        else valueToSave = checkedStatus.value;
     }
     
-    if (valueToSave) {
-        currentInput[activeArea][fullLabel] = valueToSave;
-    } else {
-        delete currentInput[activeArea][fullLabel];
-    }
+    if (valueToSave) currentInput[activeArea][fullLabel] = valueToSave;
+    else delete currentInput[activeArea][fullLabel];
     
     localStorage.setItem(DRAFT_KEYS.LOGSHEET, JSON.stringify(currentInput));
     renderProgressDots();
@@ -1141,11 +1394,8 @@ function showStep() {
         if (currentValue) {
             const lines = currentValue.split('\n');
             const firstLine = lines[0];
-            if (!['ERROR', 'UPPER', 'NOT_INSTALLED'].includes(firstLine)) {
-                currentValue = firstLine;
-            } else {
-                currentValue = '';
-            }
+            if (!['ERROR', 'UPPER', 'NOT_INSTALLED'].includes(firstLine)) currentValue = firstLine;
+            else currentValue = '';
         }
         
         let optionsHtml = `<option value="" disabled ${!currentValue ? 'selected' : ''}>Pilih Status...</option>`;
@@ -1174,11 +1424,8 @@ function showStep() {
         if (currentValue) {
             const lines = currentValue.split('\n');
             const firstLine = lines[0];
-            if (!['ERROR', 'UPPER', 'NOT_INSTALLED'].includes(firstLine)) {
-                currentValue = firstLine;
-            } else {
-                currentValue = '';
-            }
+            if (!['ERROR', 'UPPER', 'NOT_INSTALLED'].includes(firstLine)) currentValue = firstLine;
+            else currentValue = '';
         }
         
         if (inputFieldContainer) {
@@ -1210,9 +1457,7 @@ function saveStep() {
     if (!currentInput[activeArea]) currentInput[activeArea] = {};
     
     let valueToSave = '';
-    if (input && input.value.trim()) {
-        valueToSave = input.value.trim();
-    }
+    if (input && input.value.trim()) valueToSave = input.value.trim();
     
     const checkedStatus = document.querySelector('input[name="paramStatus"]:checked');
     const note = document.getElementById('statusNote')?.value || '';
@@ -1222,19 +1467,13 @@ function saveStep() {
             valueToSave = 'NOT_INSTALLED';
             if (note) valueToSave += '\n' + note;
         } else {
-            if (note) {
-                valueToSave = `${checkedStatus.value}\n${note}`;
-            } else {
-                valueToSave = checkedStatus.value;
-            }
+            if (note) valueToSave = `${checkedStatus.value}\n${note}`;
+            else valueToSave = checkedStatus.value;
         }
     }
     
-    if (valueToSave) {
-        currentInput[activeArea][fullLabel] = valueToSave;
-    } else {
-        delete currentInput[activeArea][fullLabel];
-    }
+    if (valueToSave) currentInput[activeArea][fullLabel] = valueToSave;
+    else delete currentInput[activeArea][fullLabel];
     
     localStorage.setItem(DRAFT_KEYS.LOGSHEET, JSON.stringify(currentInput));
     
@@ -1254,9 +1493,7 @@ function goBack() {
     if (!currentInput[activeArea]) currentInput[activeArea] = {};
     
     let valueToSave = '';
-    if (input && input.value.trim()) {
-        valueToSave = input.value.trim();
-    }
+    if (input && input.value.trim()) valueToSave = input.value.trim();
     
     const checkedStatus = document.querySelector('input[name="paramStatus"]:checked');
     const note = document.getElementById('statusNote')?.value || '';
@@ -1266,19 +1503,13 @@ function goBack() {
             valueToSave = 'NOT_INSTALLED';
             if (note) valueToSave += '\n' + note;
         } else {
-            if (note) {
-                valueToSave = `${checkedStatus.value}\n${note}`;
-            } else {
-                valueToSave = checkedStatus.value;
-            }
+            if (note) valueToSave = `${checkedStatus.value}\n${note}`;
+            else valueToSave = checkedStatus.value;
         }
     }
     
-    if (valueToSave) {
-        currentInput[activeArea][fullLabel] = valueToSave;
-    } else {
-        delete currentInput[activeArea][fullLabel];
-    }
+    if (valueToSave) currentInput[activeArea][fullLabel] = valueToSave;
+    else delete currentInput[activeArea][fullLabel];
     
     localStorage.setItem(DRAFT_KEYS.LOGSHEET, JSON.stringify(currentInput));
     
@@ -1290,9 +1521,6 @@ function goBack() {
     }
 }
 
-// ============================================
-// SEND TO SHEET (UPDATED WITH PROGRESS)
-// ============================================
 async function sendToSheet() {
     if (!requireAuth()) return;
     
@@ -1313,8 +1541,6 @@ async function sendToSheet() {
         ...allParameters
     };
     
-    console.log('Sending Logsheet Data:', finalData);
-    
     try {
         await fetch(GAS_URL, {
             method: 'POST',
@@ -1325,15 +1551,12 @@ async function sendToSheet() {
         });
         
         progress.complete();
-        
         showCustomAlert('✓ Data berhasil dikirim ke sistem!', 'success');
         
         currentInput = {};
         localStorage.removeItem(DRAFT_KEYS.LOGSHEET);
         
-        setTimeout(() => {
-            navigateTo('homeScreen');
-        }, 1500);
+        setTimeout(() => navigateTo('homeScreen'), 1500);
         
     } catch (error) {
         console.error('Error sending data:', error);
@@ -1343,21 +1566,18 @@ async function sendToSheet() {
         offlineData.push(finalData);
         localStorage.setItem(DRAFT_KEYS.LOGSHEET_OFFLINE, JSON.stringify(offlineData));
         
-        setTimeout(() => {
-            showCustomAlert('Gagal mengirim. Data disimpan lokal.', 'error');
-        }, 500);
+        setTimeout(() => showCustomAlert('Gagal mengirim. Data disimpan lokal.', 'error'), 500);
     }
 }
 
 // ============================================
 // TPM FUNCTIONS
 // ============================================
+
 function updateTPMUserInfo() {
     if (!currentUser) return;
-    
     const tpmHeaderUser = document.getElementById('tpmHeaderUser');
     const tpmInputUser = document.getElementById('tpmInputUser');
-    
     if (tpmHeaderUser) tpmHeaderUser.textContent = currentUser.name;
     if (tpmInputUser) tpmInputUser.textContent = currentUser.name;
 }
@@ -1393,7 +1613,6 @@ function resetTPMForm() {
             </div>
         `;
     }
-    
     if (photoSection) photoSection.classList.remove('has-photo');
     
     const notes = document.getElementById('tpmNotes');
@@ -1467,9 +1686,6 @@ function selectTPMStatus(status) {
     }
 }
 
-// ============================================
-// SUBMIT TPM (UPDATED WITH PROGRESS)
-// ============================================
 async function submitTPMData() {
     if (!requireAuth()) return;
     
@@ -1480,12 +1696,10 @@ async function submitTPMData() {
         showCustomAlert('Pilih status kondisi terlebih dahulu!', 'error');
         return;
     }
-    
     if (!currentTPMPhoto) {
         showCustomAlert('Ambil foto dokumentasi terlebih dahulu!', 'error');
         return;
     }
-    
     if (!action) {
         showCustomAlert('Pilih tindakan yang dilakukan!', 'error');
         return;
@@ -1530,29 +1744,23 @@ async function submitTPMData() {
         
     } catch (error) {
         progress.error();
-        
         let offlineTPM = JSON.parse(localStorage.getItem(DRAFT_KEYS.TPM_OFFLINE) || '[]');
         offlineTPM.push(tpmData);
         localStorage.setItem(DRAFT_KEYS.TPM_OFFLINE, JSON.stringify(offlineTPM));
-        
-        setTimeout(() => {
-            showCustomAlert('Gagal mengupload. Data disimpan lokal.', 'error');
-        }, 500);
+        setTimeout(() => showCustomAlert('Gagal mengupload. Data disimpan lokal.', 'error'), 500);
     }
 }
 
 // ============================================
 // BALANCING FUNCTIONS
 // ============================================
+
 function saveBalancingDraft() {
     try {
         const draftData = {};
-        
         BALANCING_FIELDS.forEach(fieldId => {
             const element = document.getElementById(fieldId);
-            if (element) {
-                draftData[fieldId] = element.value;
-            }
+            if (element) draftData[fieldId] = element.value;
         });
         
         draftData._shift = currentShift;
@@ -1561,9 +1769,7 @@ function saveBalancingDraft() {
         draftData._userId = currentUser ? currentUser.id : 'unknown';
         
         localStorage.setItem(DRAFT_KEYS.BALANCING, JSON.stringify(draftData));
-        console.log('Balancing draft saved');
         updateDraftStatusIndicator();
-        
     } catch (e) {
         console.error('Error saving balancing draft:', e);
     }
@@ -1572,11 +1778,7 @@ function saveBalancingDraft() {
 function loadBalancingDraft() {
     try {
         const draftData = JSON.parse(localStorage.getItem(DRAFT_KEYS.BALANCING));
-        
-        if (!draftData) {
-            console.log('No balancing draft found');
-            return false;
-        }
+        if (!draftData) return false;
         
         let loadedCount = 0;
         BALANCING_FIELDS.forEach(fieldId => {
@@ -1588,18 +1790,14 @@ function loadBalancingDraft() {
         });
         
         const eksporEl = document.getElementById('eksporMW');
-        if (eksporEl && eksporEl.value) {
-            handleEksporInput(eksporEl);
-        }
+        if (eksporEl && eksporEl.value) handleEksporInput(eksporEl);
         
         calculateLPBalance();
         
         if (loadedCount > 0) {
             showCustomAlert(`Draft tersimpan ditemukan! ${loadedCount} field telah diisi.`, 'success');
         }
-        
         return loadedCount > 0;
-        
     } catch (e) {
         console.error('Error loading balancing draft:', e);
         return false;
@@ -1609,7 +1807,6 @@ function loadBalancingDraft() {
 function clearBalancingDraft() {
     try {
         localStorage.removeItem(DRAFT_KEYS.BALANCING);
-        console.log('Balancing draft cleared');
         updateDraftStatusIndicator();
     } catch (e) {
         console.error('Error clearing balancing draft:', e);
@@ -1617,9 +1814,7 @@ function clearBalancingDraft() {
 }
 
 function setupBalancingAutoSave() {
-    if (balancingAutoSaveInterval) {
-        clearInterval(balancingAutoSaveInterval);
-    }
+    if (balancingAutoSaveInterval) clearInterval(balancingAutoSaveInterval);
     
     let lastData = '';
     balancingAutoSaveInterval = setInterval(() => {
@@ -1638,7 +1833,7 @@ function setupBalancingAutoSave() {
     if (formContainer) {
         let timeout;
         formContainer.addEventListener('input', (e) => {
-            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') {
+            if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) {
                 clearTimeout(timeout);
                 timeout = setTimeout(() => saveBalancingDraft(), 1000);
             }
@@ -1665,18 +1860,6 @@ function updateDraftStatusIndicator() {
     if (indicator) {
         const hasDraft = localStorage.getItem(DRAFT_KEYS.BALANCING) !== null;
         indicator.style.display = hasDraft ? 'flex' : 'none';
-        if (hasDraft) {
-            indicator.innerHTML = `
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                    <polyline points="14 2 14 8 20 8"/>
-                    <line x1="16" y1="13" x2="8" y2="13"/>
-                    <line x1="16" y1="17" x2="8" y2="17"/>
-                    <polyline points="10 9 9 9 8 9"/>
-                </svg>
-                <span>Draft tersimpan</span>
-            `;
-        }
     }
 }
 
@@ -1691,11 +1874,8 @@ function initBalancingScreen() {
     const draftData = JSON.parse(localStorage.getItem(DRAFT_KEYS.BALANCING));
     const hasDraft = draftData !== null;
     
-    if (hasDraft) {
-        loadBalancingDraft();
-    } else {
-        loadLastBalancingData();
-    }
+    if (hasDraft) loadBalancingDraft();
+    else loadLastBalancingData();
     
     calculateLPBalance();
     setupBalancingAutoSave();
@@ -1830,9 +2010,7 @@ async function loadLastBalancingData(fromSpreadsheet = true) {
         });
         
         const eksporEl = document.getElementById('eksporMW');
-        if (eksporEl && eksporEl.value) {
-            handleEksporInput(eksporEl);
-        }
+        if (eksporEl && eksporEl.value) handleEksporInput(eksporEl);
         
         calculateLPBalance();
         setDefaultDateTime();
@@ -1853,18 +2031,14 @@ async function loadLastBalancingData(fromSpreadsheet = true) {
 }
 
 function resetBalancingForm() {
-    if (!confirm('Yakin reset form? Semua data akan dikosongkan dan draft akan dihapus.')) {
-        return;
-    }
+    if (!confirm('Yakin reset form? Semua data akan dikosongkan dan draft akan dihapus.')) return;
     
     clearBalancingDraft();
     setDefaultDateTime();
     
     BALANCING_FIELDS.forEach(fieldId => {
         const element = document.getElementById(fieldId);
-        if (element) {
-            element.value = '';
-        }
+        if (element) element.value = '';
     });
     
     const selects = ['ss2000Via', 'melterSA2', 'ejectorSteam', 'glandSealSteam'];
@@ -1892,7 +2066,6 @@ function resetBalancingForm() {
     }
     
     calculateLPBalance();
-    
     showCustomAlert('Form berhasil direset! Semua field dikosongkan.', 'success');
 }
 
@@ -1928,7 +2101,6 @@ function handleEksporInput(input) {
         input.style.borderColor = '#10b981';
         input.style.background = 'rgba(16, 185, 129, 0.05)';
         input.setAttribute('data-state', 'ekspor');
-        
     } else if (value > 0) {
         if (label) {
             label.textContent = 'Impor (MW)';
@@ -1941,7 +2113,6 @@ function handleEksporInput(input) {
         input.style.borderColor = '#f59e0b';
         input.style.background = 'rgba(245, 158, 11, 0.05)';
         input.setAttribute('data-state', 'impor');
-        
     } else {
         if (label) {
             label.textContent = 'Ekspor/Impor (MW)';
@@ -1982,9 +2153,7 @@ function calculateLPBalance() {
     totalKonsumsi += parseFloat(document.getElementById('glandSealSteam')?.value) || 0;
     
     const totalDisplay = document.getElementById('totalKonsumsiSteam');
-    if (totalDisplay) {
-        totalDisplay.textContent = totalKonsumsi.toFixed(1) + ' t/h';
-    }
+    if (totalDisplay) totalDisplay.textContent = totalKonsumsi.toFixed(1) + ' t/h';
     
     const balance = produksi - totalKonsumsi;
     
@@ -2113,9 +2282,6 @@ function formatWhatsAppMessage(data) {
     return message;
 }
 
-// ============================================
-// SUBMIT BALANCING (UPDATED WITH PROGRESS)
-// ============================================
 async function submitBalancingData() {
     if (!requireAuth()) return;
     
@@ -2208,7 +2374,6 @@ async function submitBalancingData() {
         });
         
         progress.complete();
-        
         showCustomAlert('✓ Data Balancing berhasil dikirim!', 'success');
         
         let balancingHistory = JSON.parse(localStorage.getItem(DRAFT_KEYS.BALANCING_HISTORY) || '[]');
@@ -2233,15 +2398,14 @@ async function submitBalancingData() {
         offlineBalancing.push(balancingData);
         localStorage.setItem(DRAFT_KEYS.BALANCING_OFFLINE, JSON.stringify(offlineBalancing));
         
-        setTimeout(() => {
-            showCustomAlert('Gagal mengirim. Data disimpan lokal.', 'error');
-        }, 500);
+        setTimeout(() => showCustomAlert('Gagal mengirim. Data disimpan lokal.', 'error'), 500);
     }
 }
 
 // ============================================
 // PWA INSTALL HANDLER
 // ============================================
+
 let deferredPrompt = null;
 let installBannerShown = false;
 
@@ -2250,9 +2414,7 @@ window.addEventListener('beforeinstallprompt', (e) => {
     deferredPrompt = e;
     
     if (!isAppInstalled() && !installBannerShown) {
-        setTimeout(() => {
-            showCustomInstallBanner();
-        }, 3000);
+        setTimeout(() => showCustomInstallBanner(), 3000);
     }
 });
 
@@ -2296,94 +2458,33 @@ function showCustomInstallBanner() {
                 justify-content: center;
                 font-size: 40px;
                 box-shadow: 0 10px 25px rgba(245, 158, 11, 0.3);
-            ">
-                ⚡
-            </div>
+            ">⚡</div>
             
-            <h3 style="
-                color: #f8fafc;
-                font-size: 1.25rem;
-                font-weight: 700;
-                margin-bottom: 8px;
-            ">
+            <h3 style="color: #f8fafc; font-size: 1.25rem; font-weight: 700; margin-bottom: 8px;">
                 Install Aplikasi
             </h3>
             
-            <p style="
-                color: #94a3b8;
-                font-size: 0.875rem;
-                margin-bottom: 24px;
-                line-height: 1.5;
-            ">
-                Tambahkan Turbine Log ke layar utama untuk akses lebih cepat dan pengalaman seperti aplikasi native.
+            <p style="color: #94a3b8; font-size: 0.875rem; margin-bottom: 24px; line-height: 1.5;">
+                Tambahkan Turbine Log ke layar utama untuk akses lebih cepat.
             </p>
             
             <div style="display: flex; flex-direction: column; gap: 12px;">
                 <button onclick="installPWA()" style="
-                    width: 100%;
-                    padding: 14px 24px;
+                    width: 100%; padding: 14px 24px;
                     background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-                    color: white;
-                    border: none;
-                    border-radius: 12px;
-                    font-size: 1rem;
-                    font-weight: 600;
-                    cursor: pointer;
-                    transition: transform 0.2s;
-                " onmouseover="this.style.transform='scale(1.02)'" onmouseout="this.style.transform='scale(1)'">
-                    Install Sekarang
-                </button>
+                    color: white; border: none; border-radius: 12px;
+                    font-size: 1rem; font-weight: 600; cursor: pointer;
+                ">Install Sekarang</button>
                 
                 <button onclick="hideCustomInstallBanner()" style="
-                    width: 100%;
-                    padding: 12px 24px;
-                    background: transparent;
-                    color: #64748b;
-                    border: 1px solid rgba(148, 163, 184, 0.2);
-                    border-radius: 12px;
-                    font-size: 0.9375rem;
-                    cursor: pointer;
-                    transition: all 0.2s;
-                ">
-                    Nanti Saja
-                </button>
-            </div>
-            
-            <div style="
-                margin-top: 20px;
-                padding-top: 20px;
-                border-top: 1px solid rgba(148, 163, 184, 0.1);
-                display: flex;
-                justify-content: center;
-                gap: 20px;
-                font-size: 0.75rem;
-                color: #64748b;
-            ">
-                <span style="display: flex; align-items: center; gap: 4px;">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
-                    </svg>
-                    Cepat
-                </span>
-                <span style="display: flex; align-items: center; gap: 4px;">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                    </svg>
-                    Aman
-                </span>
-                <span style="display: flex; align-items: center; gap: 4px;">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M12 2v20M2 12h20"/>
-                    </svg>
-                    Offline
-                </span>
+                    width: 100%; padding: 12px 24px; background: transparent;
+                    color: #64748b; border: 1px solid rgba(148, 163, 184, 0.2);
+                    border-radius: 12px; font-size: 0.9375rem; cursor: pointer;
+                ">Nanti Saja</button>
             </div>
         </div>
-        
         <div style="
-            position: fixed;
-            inset: 0;
+            position: fixed; inset: 0;
             background: rgba(0, 0, 0, 0.8);
             backdrop-filter: blur(4px);
             z-index: 10001;
@@ -2404,30 +2505,25 @@ function hideCustomInstallBanner() {
 
 async function installPWA() {
     if (!deferredPrompt) {
-        showToast('Aplikasi sudah terinstall atau browser tidak mendukung', 'info');
+        showToast('Aplikasi sudah terinstall', 'info');
         return;
     }
     
     deferredPrompt.prompt();
-    
     const { outcome } = await deferredPrompt.userChoice;
     
     if (outcome === 'accepted') {
-        console.log('User installed PWA');
         hideCustomInstallBanner();
         showToast('✓ Menginstall aplikasi...', 'success');
     } else {
-        console.log('User dismissed install');
         hideCustomInstallBanner();
     }
-    
     deferredPrompt = null;
 }
 
 function isAppInstalled() {
     return window.matchMedia('(display-mode: standalone)').matches || 
-           window.navigator.standalone === true ||
-           document.referrer.includes('android-app://');
+           window.navigator.standalone === true;
 }
 
 const style = document.createElement('style');
@@ -2459,7 +2555,6 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
-// Toggle SS2000 Detail visibility
 function toggleSS2000Detail() {
     const select = document.getElementById('ss2000Via');
     const detail = document.getElementById('ss2000Detail');
