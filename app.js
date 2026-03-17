@@ -1,7 +1,7 @@
 // ============================================
 // TURBINE LOGSHEET PRO - VERSION CONTROL
 // ============================================
-const APP_VERSION = '1.3.1'; 
+const APP_VERSION = '1.3.2'; 
 
 // ============================================
 // CONFIGURATION & CONSTANTS
@@ -2220,7 +2220,7 @@ async function submitBalancingData() {
         
         setTimeout(() => {
             const waMessage = encodeURIComponent(formatWhatsAppMessage(balancingData));
-            const waNumber = '6282233069673';
+            const waNumber = '6281382160345';
             window.open(`https://wa.me/${waNumber}?text=${waMessage}`, '_blank');
             navigateTo('homeScreen');
         }, 1000);
