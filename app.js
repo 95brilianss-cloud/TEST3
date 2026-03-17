@@ -1,25 +1,16 @@
-/**
- * =============================================================================
- * TURBINE LOGSHEET PRO - FRONTEND FINAL v2.2.0 (CORS Fixed)
- * Full Working Code - Ready to Deploy
- * =============================================================================
- */
+// ============================================
+// TURBINE LOGSHEET PRO - VERSION CONTROL
+// ============================================
+const APP_VERSION = '1.3.2'; 
 
 // ============================================
 // CONFIGURATION & CONSTANTS
 // ============================================
-const APP_VERSION = '2.0.2';
-// ⚠️⚠️⚠️ GANTI DENGAN URL DEPLOYMENT BARU ANDA (tanpa spasi di akhir!)
-const GAS_URL = "https://script.google.com/macros/s/AKfycbx0FrXLs0JzUJpm8dnJoyM3jvuYJ4CmihpID2dHy-kvZ9A-MtapVHdzmhNmhGR2PJyn/exec";
-
 const AUTH_CONFIG = {
-    SESSION_KEY: 'turbine_session_v2',
-    USER_KEY: 'turbine_user_v2',
+    SESSION_KEY: 'turbine_session',
+    USER_KEY: 'turbine_user',
     SESSION_DURATION: 8 * 60 * 60 * 1000,
-    MAX_LOGIN_ATTEMPTS: 5,
-    LOCKOUT_KEY: 'login_lockout_until',
-    FAILED_ATTEMPTS_KEY: 'failed_login_count',
-    PASSWORD_MIN_LENGTH: 4
+    REMEMBER_ME_DURATION: 30 * 24 * 60 * 60 * 1000
 };
 
 const DRAFT_KEYS = {
@@ -48,6 +39,8 @@ const BALANCING_FIELDS = [
     'ctSuFan', 'ctSuPompa', 'ctSaFan', 'ctSaPompa',
     'kegiatanShift'
 ];
+
+const GAS_URL = "https://script.google.com/macros/s/AKfycbx_CS4ScaydTmn4bYbGD0otv4QwoiUfQB6F9oOhS93YFx4lAQLRO47UsJaO5jgRhP08/exec";
 
 const INPUT_TYPES = {
     PUMP_STATUS: {
@@ -214,121 +207,36 @@ let uploadProgressInterval = null;
 let currentUploadController = null;
 
 // ============================================
-// API HELPERS (CORS FIXED)
+// SERVICE WORKER
 // ============================================
-
-/**
- * Login menggunakan JSONP (bypass CORS total)
- */
-function loginWithJSONP(username, password) {
-    return new Promise((resolve, reject) => {
-        const callbackName = 'loginCB_' + Date.now();
-        const script = document.createElement('script');
-        const timeout = setTimeout(() => {
-            cleanup();
-            reject(new Error('Timeout'));
-        }, 15000);
-        
-        const cleanup = () => {
-            clearTimeout(timeout);
-            delete window[callbackName];
-            if (script.parentNode) script.parentNode.removeChild(script);
-        };
-        
-        window[callbackName] = (response) => {
-            cleanup();
-            resolve(response);
-        };
-        
-        const url = new URL(GAS_URL);
-        url.searchParams.append('action', 'login');
-        url.searchParams.append('username', username);
-        url.searchParams.append('password', password);
-        url.searchParams.append('callback', callbackName);
-        
-        script.src = url.toString();
-        script.onerror = () => {
-            cleanup();
-            reject(new Error('Network error'));
-        };
-        
-        document.body.appendChild(script);
-    });
-}
-
-/**
- * POST data menggunakan no-cors mode (fire and forget)
- */
-async function postDataToGAS(payload) {
-    try {
-        await fetch(GAS_URL, {
-            method: 'POST',
-            mode: 'no-cors',
-            headers: {
-                'Content-Type': 'text/plain',
-            },
-            body: JSON.stringify(payload)
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register(`./sw.js?v=${APP_VERSION}`)
+            .then(registration => {
+                console.log('SW registered:', registration);
+                registration.addEventListener('updatefound', () => {
+                    const newWorker = registration.installing;
+                    newWorker.addEventListener('statechange', () => {
+                        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                            showUpdateAlert();
+                        }
+                    });
+                });
+            })
+            .catch(err => console.log('SW registration failed:', err));
+            
+        navigator.serviceWorker.addEventListener('message', event => {
+            if (event.data?.type === 'VERSION_CHECK' && event.data.version !== APP_VERSION) {
+                showUpdateAlert();
+            }
         });
-        
-        return { success: true, message: 'Data terkirim' };
-    } catch (error) {
-        console.error('Post error:', error);
-        return { success: false, error: error.message };
-    }
-}
-
-/**
- * GET data menggunakan JSONP
- */
-function getDataJSONP(action, extraParams = {}) {
-    return new Promise((resolve, reject) => {
-        const cbName = 'dataCB_' + Date.now();
-        const script = document.createElement('script');
-        const timeout = setTimeout(() => {
-            cleanup();
-            reject(new Error('Timeout'));
-        }, 10000);
-        
-        const cleanup = () => {
-            clearTimeout(timeout);
-            delete window[cbName];
-            if (script.parentNode) script.parentNode.removeChild(script);
-        };
-        
-        window[cbName] = (data) => {
-            cleanup();
-            resolve(data);
-        };
-        
-        const url = new URL(GAS_URL);
-        url.searchParams.append('action', action);
-        url.searchParams.append('callback', cbName);
-        url.searchParams.append('t', Date.now());
-        
-        Object.keys(extraParams).forEach(key => {
-            url.searchParams.append(key, extraParams[key]);
-        });
-        
-        script.src = url.toString();
-        script.onerror = () => {
-            cleanup();
-            reject(new Error('Load error'));
-        };
-        
-        document.body.appendChild(script);
     });
 }
 
 // ============================================
-// AUTHENTICATION SYSTEM
+// AUTHENTICATION FUNCTIONS
 // ============================================
-
 function initAuth() {
-    if (isClientLockedOut()) {
-        showClientLockoutScreen();
-        return;
-    }
-    
     const session = getSession();
     
     if (session && isSessionValid(session)) {
@@ -351,12 +259,13 @@ function getSession() {
         const sessionData = localStorage.getItem(AUTH_CONFIG.SESSION_KEY);
         return sessionData ? JSON.parse(sessionData) : null;
     } catch (e) {
+        console.error('Error reading session:', e);
         return null;
     }
 }
 
 function saveSession(user, rememberMe = false) {
-    const duration = rememberMe ? (30 * 24 * 60 * 60 * 1000) : AUTH_CONFIG.SESSION_DURATION;
+    const duration = rememberMe ? AUTH_CONFIG.REMEMBER_ME_DURATION : AUTH_CONFIG.SESSION_DURATION;
     const session = {
         user: user,
         loginTime: Date.now(),
@@ -374,8 +283,7 @@ function saveSession(user, rememberMe = false) {
 
 function isSessionValid(session) {
     if (!session || !session.expiresAt) return false;
-    if (Date.now() > session.expiresAt) return false;
-    return true;
+    return Date.now() < session.expiresAt;
 }
 
 function clearSession() {
@@ -385,179 +293,58 @@ function clearSession() {
     isAuthenticated = false;
 }
 
-function isClientLockedOut() {
-    const lockoutUntil = localStorage.getItem(AUTH_CONFIG.LOCKOUT_KEY);
-    if (lockoutUntil) {
-        const now = Date.now();
-        if (now < parseInt(lockoutUntil)) {
-            return true;
-        } else {
-            localStorage.removeItem(AUTH_CONFIG.LOCKOUT_KEY);
-            localStorage.removeItem(AUTH_CONFIG.FAILED_ATTEMPTS_KEY);
-        }
+function loginOperator() {
+    const nameInput = document.getElementById('operatorName');
+    const errorMsg = document.getElementById('loginError');
+    
+    if (!nameInput) {
+        console.error('Login input not found');
+        return;
     }
-    return false;
-}
-
-function setClientLockout(minutes) {
-    const until = Date.now() + (minutes * 60000);
-    localStorage.setItem(AUTH_CONFIG.LOCKOUT_KEY, until.toString());
-}
-
-function showClientLockoutScreen() {
-    const lockoutUntil = parseInt(localStorage.getItem(AUTH_CONFIG.LOCKOUT_KEY));
-    const remainingMinutes = Math.ceil((lockoutUntil - Date.now()) / 60000);
     
-    showLoginError(`Akun terkunci. Tunggu ${remainingMinutes} menit.`, 'locked');
+    const operatorName = nameInput.value.trim();
     
-    const inputs = document.querySelectorAll('#loginScreen input, #loginScreen button');
-    inputs.forEach(el => {
-        if (!el.classList.contains('alert-btn')) el.disabled = true;
-    });
+    if (!operatorName) {
+        if (errorMsg) {
+            errorMsg.textContent = 'Nama operator wajib diisi!';
+            errorMsg.style.display = 'block';
+        }
+        nameInput.focus();
+        nameInput.classList.add('error');
+        return;
+    }
+    
+    if (operatorName.length < 3) {
+        if (errorMsg) {
+            errorMsg.textContent = 'Nama minimal 3 karakter!';
+            errorMsg.style.display = 'block';
+        }
+        nameInput.focus();
+        nameInput.classList.add('error');
+        return;
+    }
+    
+    if (errorMsg) errorMsg.style.display = 'none';
+    nameInput.classList.remove('error');
+    
+    const user = {
+        name: operatorName,
+        id: 'OP-' + Date.now().toString(36).toUpperCase(),
+        loginTime: new Date().toISOString(),
+        role: 'operator'
+    };
+    
+    saveSession(user, false);
+    currentUser = user;
+    isAuthenticated = true;
+    
+    showCustomAlert(`Selamat datang, ${operatorName}!`, 'success');
     
     setTimeout(() => {
-        inputs.forEach(el => el.disabled = false);
-        hideLoginError();
-    }, remainingMinutes * 60000);
-}
-
-function setupLoginListeners() {
-    const nameInput = document.getElementById('operatorName');
-    const passInput = document.getElementById('operatorPassword');
-    
-    if (nameInput) {
-        nameInput.addEventListener('input', () => {
-            nameInput.classList.remove('error');
-            hideLoginError();
-        });
-        nameInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter' && passInput) passInput.focus();
-        });
-    }
-    
-    if (passInput) {
-        passInput.addEventListener('input', () => {
-            passInput.classList.remove('error');
-            hideLoginError();
-        });
-        passInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') loginOperator();
-        });
-    }
-    
-    const toggleBtn = document.getElementById('togglePassword');
-    if (toggleBtn && passInput) {
-        toggleBtn.addEventListener('click', () => {
-            const type = passInput.getAttribute('type') === 'password' ? 'text' : 'password';
-            passInput.setAttribute('type', type);
-            toggleBtn.textContent = type === 'password' ? '👁️' : '🙈';
-        });
-    }
-}
-
-function hideLoginError() {
-    const errorMsg = document.getElementById('loginError');
-    if (errorMsg) {
-        errorMsg.style.display = 'none';
-        errorMsg.textContent = '';
-        errorMsg.className = 'login-error';
-    }
-}
-
-function showLoginError(message, type = 'error') {
-    const errorMsg = document.getElementById('loginError');
-    if (!errorMsg) return;
-    
-    errorMsg.textContent = message;
-    errorMsg.style.display = 'block';
-    
-    if (type === 'warning') {
-        errorMsg.style.color = 'var(--warning)';
-        errorMsg.style.background = 'rgba(245, 158, 11, 0.1)';
-        errorMsg.style.borderColor = 'rgba(245, 158, 11, 0.2)';
-    } else if (type === 'locked') {
-        errorMsg.style.color = 'var(--danger)';
-        errorMsg.style.background = 'rgba(239, 68, 68, 0.15)';
-        errorMsg.style.borderColor = 'var(--danger)';
-        errorMsg.style.fontWeight = '600';
-    } else {
-        errorMsg.style.color = 'var(--danger)';
-        errorMsg.style.background = 'rgba(239, 68, 68, 0.1)';
-        errorMsg.style.borderColor = 'rgba(239, 68, 68, 0.2)';
-    }
-}
-
-async function loginOperator() {
-    if (isClientLockedOut()) {
-        showClientLockoutScreen();
-        return;
-    }
-    
-    const nameInput = document.getElementById('operatorName');
-    const passInput = document.getElementById('operatorPassword');
-    const loginBtn = document.querySelector('#loginScreen .btn-primary');
-    
-    if (!nameInput || !passInput) return;
-    
-    const username = nameInput.value.trim();
-    const password = passInput.value;
-    
-    if (!username || !password) {
-        showLoginError('Username dan password wajib diisi!');
-        return;
-    }
-    
-    if (password.length < AUTH_CONFIG.PASSWORD_MIN_LENGTH) {
-        showLoginError(`Password minimal ${AUTH_CONFIG.PASSWORD_MIN_LENGTH} karakter!`);
-        return;
-    }
-    
-    const originalBtnText = loginBtn ? loginBtn.innerHTML : '';
-    if (loginBtn) {
-        loginBtn.disabled = true;
-        loginBtn.innerHTML = '<span class="spinner"></span> Memverifikasi...';
-    }
-    
-    try {
-        const result = await loginWithJSONP(username, password);
-        console.log('Login result:', result);
-        
-        if (result.success) {
-            localStorage.removeItem(AUTH_CONFIG.FAILED_ATTEMPTS_KEY);
-            saveSession(result.user, false);
-            currentUser = result.user;
-            isAuthenticated = true;
-            
-            showCustomAlert(`Selamat datang, ${username}!`, 'success');
-            setTimeout(() => {
-                updateUIForAuthenticatedUser();
-                navigateTo('homeScreen');
-                loadUserStats();
-            }, 800);
-        } else {
-            const failedAttempts = parseInt(localStorage.getItem(AUTH_CONFIG.FAILED_ATTEMPTS_KEY) || '0') + 1;
-            localStorage.setItem(AUTH_CONFIG.FAILED_ATTEMPTS_KEY, failedAttempts.toString());
-            
-            if (result.error === 'account_locked') {
-                setClientLockout(result.lockoutMinutes || 30);
-                showClientLockoutScreen();
-            } else {
-                showLoginError(result.message || 'Username atau password salah');
-                if (failedAttempts >= AUTH_CONFIG.MAX_LOGIN_ATTEMPTS) {
-                    setClientLockout(30);
-                    showClientLockoutScreen();
-                }
-            }
-        }
-    } catch (error) {
-        console.error('Login error:', error);
-        showLoginError('Gagal terhubung ke server. Periksa koneksi internet.', 'error');
-    } finally {
-        if (loginBtn) {
-            loginBtn.disabled = false;
-            loginBtn.innerHTML = originalBtnText;
-        }
-    }
+        updateUIForAuthenticatedUser();
+        navigateTo('homeScreen');
+        loadUserStats();
+    }, 800);
 }
 
 function logoutOperator() {
@@ -569,9 +356,7 @@ function logoutOperator() {
         clearSession();
         
         const nameInput = document.getElementById('operatorName');
-        const passInput = document.getElementById('operatorPassword');
         if (nameInput) nameInput.value = '';
-        if (passInput) passInput.value = '';
         
         showLoginScreen();
         showCustomAlert('Anda telah keluar dari sistem.', 'success');
@@ -579,13 +364,13 @@ function logoutOperator() {
 }
 
 function showLoginScreen() {
-    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.screen').forEach(s => {
+        s.classList.remove('active');
+    });
     
     const loginScreen = document.getElementById('loginScreen');
     if (loginScreen) {
         loginScreen.classList.add('active');
-        const inputs = loginScreen.querySelectorAll('input, button');
-        inputs.forEach(el => el.disabled = false);
     }
     
     const savedUser = localStorage.getItem(AUTH_CONFIG.USER_KEY);
@@ -596,7 +381,9 @@ function showLoginScreen() {
             if (nameInput && user.name) {
                 nameInput.value = user.name;
             }
-        } catch (e) {}
+        } catch (e) {
+            console.error('Error parsing saved user:', e);
+        }
     }
 }
 
@@ -616,10 +403,6 @@ function updateUIForAuthenticatedUser() {
         const el = document.getElementById(id);
         if (el) el.textContent = currentUser.name;
     });
-    
-    if (currentUser.role === 'admin') {
-        document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'block');
-    }
 }
 
 function requireAuth() {
@@ -632,10 +415,31 @@ function requireAuth() {
     return true;
 }
 
-// ============================================
-// UI FUNCTIONS
-// ============================================
+function loadUserStats() {
+    const totalAreas = Object.keys(AREAS).length;
+    let completedAreas = 0;
+    
+    Object.entries(AREAS).forEach(([areaName, params]) => {
+        const filled = currentInput[areaName] ? Object.keys(currentInput[areaName]).length : 0;
+        if (filled === params.length && filled > 0) completedAreas++;
+    });
+    
+    const statProgress = document.getElementById('statProgress');
+    const statAreas = document.getElementById('statAreas');
+    
+    if (statProgress) {
+        const percent = Math.round((completedAreas / totalAreas) * 100);
+        statProgress.textContent = `${percent}%`;
+    }
+    
+    if (statAreas) {
+        statAreas.textContent = `${completedAreas}/${totalAreas}`;
+    }
+}
 
+// ============================================
+// UPLOAD PROGRESS MANAGER (BARU)
+// ============================================
 function showUploadProgress(title = 'Mengupload Data...') {
     const overlay = document.getElementById('uploadProgressOverlay');
     const percentage = document.getElementById('progressPercentage');
@@ -643,41 +447,56 @@ function showUploadProgress(title = 'Mengupload Data...') {
     const turbine = document.getElementById('uploadTurbine');
     const statusText = document.getElementById('uploadStatusText');
     
-    if (overlay) {
-        overlay.classList.remove('hidden', 'success', 'error');
-        percentage.textContent = '0%';
-        ringFill.style.strokeDashoffset = 339.292;
-        turbine.classList.add('spinning');
-        statusText.textContent = title;
-    }
+    // Reset states
+    overlay.classList.remove('hidden', 'success', 'error');
+    percentage.textContent = '0%';
+    ringFill.style.strokeDashoffset = 339.292;
+    turbine.classList.add('spinning');
+    statusText.textContent = title;
     
+    // Reset steps
+    document.querySelectorAll('.step').forEach((step, idx) => {
+        step.classList.remove('active', 'completed');
+        if (idx === 0) step.classList.add('active');
+    });
+    document.querySelectorAll('.step-line').forEach(line => line.classList.remove('active'));
+    
+    // Start simulated progress
     let progress = 0;
+    let currentStep = 1;
+    
     uploadProgressInterval = setInterval(() => {
-        if (progress < 90) {
-            progress += Math.random() * 5;
-            updateProgressRing(progress);
+        if (progress < 30) {
+            progress += Math.random() * 3;
+        } else if (progress < 70) {
+            progress += Math.random() * 2;
+            if (currentStep === 1 && progress > 35) {
+                setUploadStep(2);
+                currentStep = 2;
+            }
+        } else if (progress < 95) {
+            progress += Math.random() * 1;
+            if (currentStep === 2 && progress > 75) {
+                setUploadStep(3);
+                currentStep = 3;
+            }
+        } else {
+            progress += 0.5;
         }
-    }, 200);
+        
+        if (progress >= 100) {
+            progress = 100;
+            clearInterval(uploadProgressInterval);
+        }
+        
+        updateProgressRing(progress);
+        
+    }, 100);
     
     return {
-        complete: () => {
-            clearInterval(uploadProgressInterval);
-            updateProgressRing(100);
-            if (overlay) overlay.classList.add('success');
-            if (turbine) turbine.classList.remove('spinning');
-            if (statusText) statusText.textContent = '✓ Berhasil!';
-            setTimeout(() => hideUploadProgress(), 800);
-        },
-        error: () => {
-            clearInterval(uploadProgressInterval);
-            if (overlay) overlay.classList.add('error');
-            if (turbine) turbine.classList.remove('spinning');
-            if (statusText) statusText.textContent = '✗ Gagal';
-            setTimeout(() => hideUploadProgress(), 1500);
-        },
-        updateText: (text) => {
-            if (statusText) statusText.textContent = text;
-        }
+        complete: () => completeUploadProgress(),
+        error: () => errorUploadProgress(),
+        updateText: (text) => { if(statusText) statusText.textContent = text; }
     };
 }
 
@@ -691,6 +510,65 @@ function updateProgressRing(percentage) {
     if (percentageText) percentageText.textContent = Math.round(percentage) + '%';
 }
 
+function setUploadStep(stepNum) {
+    for (let i = 1; i <= 3; i++) {
+        const step = document.getElementById(`step${i}`);
+        const line = document.getElementById(`stepLine${i}`);
+        
+        if (step) {
+            if (i < stepNum) {
+                step.classList.remove('active');
+                step.classList.add('completed');
+                const icon = step.querySelector('.step-icon');
+                if (icon) icon.innerHTML = '✓';
+            } else if (i === stepNum) {
+                step.classList.add('active');
+                step.classList.remove('completed');
+            }
+        }
+        
+        if (line && i < stepNum) {
+            line.classList.add('active');
+        }
+    }
+}
+
+function completeUploadProgress() {
+    clearInterval(uploadProgressInterval);
+    updateProgressRing(100);
+    setUploadStep(4);
+    
+    const overlay = document.getElementById('uploadProgressOverlay');
+    const turbine = document.getElementById('uploadTurbine');
+    const statusText = document.getElementById('uploadStatusText');
+    
+    if (overlay) overlay.classList.add('success');
+    if (turbine) turbine.classList.remove('spinning');
+    if (statusText) statusText.textContent = '✓ Berhasil!';
+    
+    setTimeout(() => {
+        hideUploadProgress();
+    }, 800);
+}
+
+function errorUploadProgress() {
+    clearInterval(uploadProgressInterval);
+    
+    const overlay = document.getElementById('uploadProgressOverlay');
+    const turbine = document.getElementById('uploadTurbine');
+    const statusText = document.getElementById('uploadStatusText');
+    const percentage = document.getElementById('progressPercentage');
+    
+    if (overlay) overlay.classList.add('error');
+    if (turbine) turbine.classList.remove('spinning');
+    if (statusText) statusText.textContent = '✗ Gagal Mengirim';
+    if (percentage) percentage.textContent = 'Error';
+    
+    setTimeout(() => {
+        hideUploadProgress();
+    }, 1500);
+}
+
 function hideUploadProgress() {
     const overlay = document.getElementById('uploadProgressOverlay');
     if (overlay) {
@@ -700,14 +578,97 @@ function hideUploadProgress() {
     clearInterval(uploadProgressInterval);
 }
 
+function cancelUpload() {
+    if (currentUploadController) {
+        currentUploadController.abort();
+    }
+    hideUploadProgress();
+    showCustomAlert('Upload dibatalkan', 'warning');
+}
+
+// ============================================
+// UI & NAVIGATION FUNCTIONS
+// ============================================
+window.addEventListener('DOMContentLoaded', () => {
+    totalParams = Object.values(AREAS).reduce((acc, arr) => acc + arr.length, 0);
+    
+    const versionDisplay = document.getElementById('versionDisplay');
+    if (versionDisplay) {
+        versionDisplay.textContent = APP_VERSION;
+    }
+    
+    initAuth();
+    setupLoginListeners();
+    setupTPMListeners();
+    
+    simulateLoading();
+});
+
+function setupLoginListeners() {
+    const nameInput = document.getElementById('operatorName');
+    if (nameInput) {
+        nameInput.addEventListener('input', () => {
+            nameInput.classList.remove('error');
+            const errorMsg = document.getElementById('loginError');
+            if (errorMsg) errorMsg.style.display = 'none';
+        });
+        
+        nameInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                loginOperator();
+            }
+        });
+    }
+}
+
+function setupTPMListeners() {
+    const tpmCamera = document.getElementById('tpmCamera');
+    if (tpmCamera) {
+        tpmCamera.addEventListener('change', handleTPMPhoto);
+    }
+}
+
+function simulateLoading() {
+    let progress = 0;
+    const loaderProgress = document.getElementById('loaderProgress');
+    const interval = setInterval(() => {
+        progress += Math.random() * 30;
+        if (progress >= 100) {
+            progress = 100;
+            clearInterval(interval);
+            setTimeout(() => {
+                const loader = document.getElementById('loader');
+                if (loader) loader.style.display = 'none';
+                
+                if (isAuthenticated) {
+                    renderMenu();
+                }
+            }, 500);
+        }
+        if (loaderProgress) loaderProgress.style.width = progress + '%';
+    }, 300);
+}
+
+function showUpdateAlert() {
+    const updateAlert = document.getElementById('updateAlert');
+    if (updateAlert) updateAlert.classList.remove('hidden');
+}
+
+function applyUpdate() {
+    if (navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({ type: 'SKIP_WAITING' });
+    }
+    window.location.reload();
+}
+
 function showCustomAlert(msg, type = 'success') {
     const alertContent = document.getElementById('alertContent');
     const alertTitle = document.getElementById('alertTitle');
     const alertIconWrapper = document.getElementById('alertIconWrapper');
     const customAlert = document.getElementById('customAlert');
-    const alertMessage = document.getElementById('alertMessage');
     
-    if (!customAlert) {
+    if (!customAlert || !alertContent || !alertTitle || !alertIconWrapper) {
+        console.error('Alert elements not found');
         alert(msg);
         return;
     }
@@ -723,18 +684,45 @@ function showCustomAlert(msg, type = 'success') {
         'warning': 'Peringatan',
         'info': 'Informasi'
     };
-    if (alertTitle) alertTitle.textContent = titleMap[type] || 'Informasi';
-    if (alertMessage) alertMessage.innerText = msg;
-    if (alertContent) alertContent.className = 'alert-content ' + type;
+    alertTitle.textContent = titleMap[type] || 'Informasi';
     
-    if (alertIconWrapper) {
-        if (type === 'success') {
-            alertIconWrapper.innerHTML = `<div class="alert-icon-bg"></div><svg class="alert-icon-svg" viewBox="0 0 52 52"><circle cx="26" cy="26" r="25"></circle><path d="M14.1 27.2l7.1 7.2 16.7-16.8"></path></svg>`;
-        } else if (type === 'error') {
-            alertIconWrapper.innerHTML = `<div class="alert-icon-bg" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);"></div><svg class="alert-icon-svg" viewBox="0 0 52 52" style="stroke: #ef4444;"><circle cx="26" cy="26" r="25"></circle><path d="M16 16 L36 36 M36 16 L16 36"></path></svg>`;
-        } else if (type === 'warning') {
-            alertIconWrapper.innerHTML = `<div class="alert-icon-bg" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);"></div><svg class="alert-icon-svg" viewBox="0 0 52 52" style="stroke: #f59e0b;"><circle cx="26" cy="26" r="25"></circle><path d="M26 10 L26 30 M26 34 L26 38"></path></svg>`;
-        }
+    const alertMessage = document.getElementById('alertMessage');
+    if (alertMessage) alertMessage.innerText = msg;
+    
+    alertContent.className = 'alert-content ' + type;
+    
+    if (type === 'success') {
+        alertIconWrapper.innerHTML = `
+            <div class="alert-icon-bg"></div>
+            <svg class="alert-icon-svg" viewBox="0 0 52 52">
+                <circle cx="26" cy="26" r="25"></circle>
+                <path d="M14.1 27.2l7.1 7.2 16.7-16.8"></path>
+            </svg>
+        `;
+    } else if (type === 'warning') {
+        alertIconWrapper.innerHTML = `
+            <div class="alert-icon-bg" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);"></div>
+            <svg class="alert-icon-svg" viewBox="0 0 52 52" style="stroke: #f59e0b;">
+                <circle cx="26" cy="26" r="25"></circle>
+                <path d="M26 10 L26 30 M26 34 L26 38"></path>
+            </svg>
+        `;
+    } else if (type === 'info') {
+        alertIconWrapper.innerHTML = `
+            <div class="alert-icon-bg" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);"></div>
+            <svg class="alert-icon-svg" viewBox="0 0 52 52" style="stroke: #3b82f6;">
+                <circle cx="26" cy="26" r="25"></circle>
+                <path d="M26 10 L26 30 M26 34 L26 36"/>
+            </svg>
+        `;
+    } else {
+        alertIconWrapper.innerHTML = `
+            <div class="alert-icon-bg" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);"></div>
+            <svg class="alert-icon-svg" viewBox="0 0 52 52" style="stroke: #ef4444;">
+                <circle cx="26" cy="26" r="25"></circle>
+                <path d="M16 16 L36 36 M36 16 L16 36"></path>
+            </svg>
+        `;
     }
     
     customAlert.classList.remove('hidden');
@@ -757,16 +745,27 @@ function closeAlert() {
 
 function navigateTo(screenId) {
     const protectedScreens = ['homeScreen', 'areaListScreen', 'paramScreen', 'tpmScreen', 'tpmInputScreen', 'balancingScreen'];
-    if (protectedScreens.includes(screenId) && !requireAuth()) return;
+    if (protectedScreens.includes(screenId) && !requireAuth()) {
+        return;
+    }
     
-    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.screen').forEach(s => {
+        s.classList.remove('active');
+        s.style.animation = 'none';
+        setTimeout(() => s.style.animation = '', 10);
+    });
     
     const targetScreen = document.getElementById(screenId);
     if (targetScreen) {
         targetScreen.classList.add('active');
         
+        if (screenId === 'tpmScreen' || screenId === 'tpmInputScreen') {
+            updateTPMUserInfo();
+        }
+        
         if (screenId === 'areaListScreen') {
             fetchLastData();
+            updateOverallProgress();
         } else if (screenId === 'homeScreen') {
             loadUserStats();
         } else if (screenId === 'balancingScreen') {
@@ -775,39 +774,34 @@ function navigateTo(screenId) {
     }
 }
 
-function loadUserStats() {
-    const totalAreas = Object.keys(AREAS).length;
-    let completedAreas = 0;
-    
-    Object.entries(AREAS).forEach(([areaName, params]) => {
-        const filled = currentInput[areaName] ? Object.keys(currentInput[areaName]).length : 0;
-        if (filled === params.length && filled > 0) completedAreas++;
-    });
-    
-    const statProgress = document.getElementById('statProgress');
-    const statAreas = document.getElementById('statAreas');
-    
-    if (statProgress) {
-        const percent = Math.round((completedAreas / totalAreas) * 100);
-        statProgress.textContent = `${percent}%`;
-    }
-    if (statAreas) statAreas.textContent = `${completedAreas}/${totalAreas}`;
-}
-
 // ============================================
 // LOGSHEET FUNCTIONS
 // ============================================
-
 function fetchLastData() {
-    getDataJSONP('default')
-        .then(data => {
-            lastData = data;
-            renderMenu();
-        })
-        .catch(err => {
-            console.error('Fetch error:', err);
-            renderMenu();
-        });
+    updateStatusIndicator(false);
+    const timeout = setTimeout(() => renderMenu(), 8000);
+    const callbackName = 'jsonp_' + Date.now();
+    const script = document.createElement('script');
+    
+    window[callbackName] = (data) => {
+        clearTimeout(timeout);
+        lastData = data;
+        updateStatusIndicator(true);
+        delete window[callbackName];
+        script.remove();
+        renderMenu();
+    };
+    
+    script.src = `${GAS_URL}?callback=${callbackName}`;
+    script.onerror = () => {
+        clearTimeout(timeout);
+        renderMenu();
+    };
+    document.body.appendChild(script);
+}
+
+function updateStatusIndicator(isOnline) {
+    console.log('Status:', isOnline ? 'Online' : 'Offline');
 }
 
 function renderMenu() {
@@ -867,10 +861,24 @@ function renderMenu() {
     const submitBtn = document.getElementById('submitBtn');
     if (submitBtn) submitBtn.style.display = hasData ? 'flex' : 'none';
     
+    updateOverallProgressUI(completedAreas, totalAreas);
+}
+
+function updateOverallProgress() {
+    const totalAreas = Object.keys(AREAS).length;
+    let completedAreas = 0;
+    Object.entries(AREAS).forEach(([areaName, params]) => {
+        const filled = currentInput[areaName] ? Object.keys(currentInput[areaName]).length : 0;
+        if (filled === params.length && filled > 0) completedAreas++;
+    });
+    updateOverallProgressUI(completedAreas, totalAreas);
+}
+
+function updateOverallProgressUI(completedAreas, totalAreas) {
+    const percent = Math.round((completedAreas / totalAreas) * 100);
     const progressText = document.getElementById('progressText');
     const overallPercent = document.getElementById('overallPercent');
     const overallProgressBar = document.getElementById('overallProgressBar');
-    const percent = Math.round((completedAreas / totalAreas) * 100);
     
     if (progressText) progressText.textContent = `${percent}% Complete`;
     if (overallPercent) overallPercent.textContent = `${percent}%`;
@@ -879,6 +887,7 @@ function renderMenu() {
 
 function openArea(areaName) {
     if (!requireAuth()) return;
+    
     activeArea = areaName;
     activeIdx = 0;
     navigateTo('paramScreen');
@@ -915,7 +924,28 @@ function renderProgressDots() {
 }
 
 function jumpToStep(index) {
-    saveCurrentStep();
+    const fullLabel = AREAS[activeArea][activeIdx];
+    const input = document.getElementById('valInput');
+    
+    if (input && input.value.trim()) {
+        if (!currentInput[activeArea]) currentInput[activeArea] = {};
+        
+        const checkedStatus = document.querySelector('input[name="paramStatus"]:checked');
+        const note = document.getElementById('statusNote')?.value || '';
+        let valueToSave = input.value.trim();
+        
+        if (checkedStatus) {
+            if (note) {
+                valueToSave = `${checkedStatus.value}\n${note}`;
+            } else {
+                valueToSave = checkedStatus.value;
+            }
+        }
+        
+        currentInput[activeArea][fullLabel] = valueToSave;
+        localStorage.setItem(DRAFT_KEYS.LOGSHEET, JSON.stringify(currentInput));
+    }
+    
     activeIdx = index;
     showStep();
     renderProgressDots();
@@ -925,7 +955,11 @@ function detectInputType(label) {
     for (const [type, config] of Object.entries(INPUT_TYPES)) {
         for (const pattern of config.patterns) {
             if (label.includes(pattern)) {
-                return { type: 'select', options: config.options[pattern], pattern: pattern };
+                return {
+                    type: 'select',
+                    options: config.options[pattern],
+                    pattern: pattern
+                };
             }
         }
     }
@@ -939,6 +973,137 @@ function getUnit(label) {
 
 function getParamName(label) {
     return label.split(' (')[0];
+}
+
+function handleStatusChange(checkbox) {
+    const chip = checkbox.closest('.status-chip');
+    const noteContainer = document.getElementById('statusNoteContainer');
+    const fullLabel = AREAS[activeArea][activeIdx];
+    const valInput = document.getElementById('valInput');
+    
+    document.querySelectorAll('input[name="paramStatus"]').forEach(cb => {
+        if (cb !== checkbox) {
+            cb.checked = false;
+            cb.closest('.status-chip').classList.remove('active');
+        }
+    });
+    
+    if (checkbox.checked) {
+        chip.classList.add('active');
+        if (noteContainer) noteContainer.style.display = 'block';
+        
+        setTimeout(() => {
+            const noteInput = document.getElementById('statusNote');
+            if (noteInput) noteInput.focus();
+        }, 100);
+        
+        if (checkbox.value === 'NOT_INSTALLED') {
+            if (valInput) {
+                valInput.value = '-';
+                valInput.disabled = true;
+                valInput.style.opacity = '0.5';
+                valInput.style.background = 'rgba(100, 116, 139, 0.2)';
+            }
+        }
+    } else {
+        chip.classList.remove('active');
+        if (noteContainer) noteContainer.style.display = 'none';
+        const noteInput = document.getElementById('statusNote');
+        if (noteInput) noteInput.value = '';
+        
+        if (valInput) {
+            valInput.value = '';
+            valInput.disabled = false;
+            valInput.style.opacity = '1';
+            valInput.style.background = '';
+            valInput.focus();
+        }
+    }
+    
+    saveCurrentStatusToDraft();
+}
+
+function saveCurrentStatusToDraft() {
+    const fullLabel = AREAS[activeArea][activeIdx];
+    const input = document.getElementById('valInput');
+    const checkedStatus = document.querySelector('input[name="paramStatus"]:checked');
+    const note = document.getElementById('statusNote')?.value || '';
+    
+    if (!currentInput[activeArea]) currentInput[activeArea] = {};
+    
+    let valueToSave = '';
+    if (input && input.value.trim()) {
+        valueToSave = input.value.trim();
+    }
+    
+    if (checkedStatus) {
+        if (note) {
+            valueToSave = `${checkedStatus.value}\n${note}`;
+        } else {
+            valueToSave = checkedStatus.value;
+        }
+    }
+    
+    if (valueToSave) {
+        currentInput[activeArea][fullLabel] = valueToSave;
+    } else {
+        delete currentInput[activeArea][fullLabel];
+    }
+    
+    localStorage.setItem(DRAFT_KEYS.LOGSHEET, JSON.stringify(currentInput));
+    renderProgressDots();
+}
+
+function loadAbnormalStatus(fullLabel) {
+    document.querySelectorAll('input[name="paramStatus"]').forEach(cb => {
+        cb.checked = false;
+        cb.closest('.status-chip').classList.remove('active');
+    });
+    const noteContainer = document.getElementById('statusNoteContainer');
+    const noteInput = document.getElementById('statusNote');
+    
+    if (noteContainer) noteContainer.style.display = 'none';
+    if (noteInput) noteInput.value = '';
+    
+    const valInput = document.getElementById('valInput');
+    if (valInput) {
+        valInput.disabled = false;
+        valInput.style.opacity = '1';
+        valInput.style.background = '';
+        valInput.value = '';
+    }
+    
+    if (currentInput[activeArea] && currentInput[activeArea][fullLabel]) {
+        const savedValue = currentInput[activeArea][fullLabel];
+        const lines = savedValue.split('\n');
+        const firstLine = lines[0];
+        const secondLine = lines[1] || '';
+        
+        const isStatus = ['ERROR', 'UPPER', 'NOT_INSTALLED'].includes(firstLine);
+        
+        if (isStatus) {
+            const checkbox = document.querySelector(`input[value="${firstLine}"]`);
+            if (checkbox) {
+                checkbox.checked = true;
+                checkbox.closest('.status-chip').classList.add('active');
+                if (noteContainer) noteContainer.style.display = 'block';
+                if (noteInput) noteInput.value = secondLine;
+                
+                if (firstLine === 'NOT_INSTALLED') {
+                    if (valInput) {
+                        valInput.value = '-';
+                        valInput.disabled = true;
+                        valInput.style.opacity = '0.5';
+                        valInput.style.background = 'rgba(100, 116, 139, 0.2)';
+                    }
+                } else {
+                    if (valInput) valInput.value = '';
+                }
+            }
+        } else {
+            if (valInput) valInput.value = savedValue;
+        }
+    }
 }
 
 function showStep() {
@@ -976,8 +1141,11 @@ function showStep() {
         if (currentValue) {
             const lines = currentValue.split('\n');
             const firstLine = lines[0];
-            if (!['ERROR', 'UPPER', 'NOT_INSTALLED'].includes(firstLine)) currentValue = firstLine;
-            else currentValue = '';
+            if (!['ERROR', 'UPPER', 'NOT_INSTALLED'].includes(firstLine)) {
+                currentValue = firstLine;
+            } else {
+                currentValue = '';
+            }
         }
         
         let optionsHtml = `<option value="" disabled ${!currentValue ? 'selected' : ''}>Pilih Status...</option>`;
@@ -1002,11 +1170,15 @@ function showStep() {
         if (mainInputWrapper) mainInputWrapper.classList.add('has-select');
     } else {
         let currentValue = (currentInput[activeArea] && currentInput[activeArea][fullLabel]) || '';
+        
         if (currentValue) {
             const lines = currentValue.split('\n');
             const firstLine = lines[0];
-            if (!['ERROR', 'UPPER', 'NOT_INSTALLED'].includes(firstLine)) currentValue = firstLine;
-            else currentValue = '';
+            if (!['ERROR', 'UPPER', 'NOT_INSTALLED'].includes(firstLine)) {
+                currentValue = firstLine;
+            } else {
+                currentValue = '';
+            }
         }
         
         if (inputFieldContainer) {
@@ -1031,61 +1203,16 @@ function showStep() {
     }, 100);
 }
 
-function loadAbnormalStatus(fullLabel) {
-    document.querySelectorAll('input[name="paramStatus"]').forEach(cb => {
-        cb.checked = false;
-        cb.closest('.status-chip').classList.remove('active');
-    });
-    const noteContainer = document.getElementById('statusNoteContainer');
-    const noteInput = document.getElementById('statusNote');
-    
-    if (noteContainer) noteContainer.style.display = 'none';
-    if (noteInput) noteInput.value = '';
-    
-    const valInput = document.getElementById('valInput');
-    if (valInput) {
-        valInput.disabled = false;
-        valInput.style.opacity = '1';
-        valInput.style.background = '';
-    }
-    
-    if (currentInput[activeArea] && currentInput[activeArea][fullLabel]) {
-        const savedValue = currentInput[activeArea][fullLabel];
-        const lines = savedValue.split('\n');
-        const firstLine = lines[0];
-        const secondLine = lines[1] || '';
-        
-        const isStatus = ['ERROR', 'UPPER', 'NOT_INSTALLED'].includes(firstLine);
-        
-        if (isStatus) {
-            const checkbox = document.querySelector(`input[value="${firstLine}"]`);
-            if (checkbox) {
-                checkbox.checked = true;
-                checkbox.closest('.status-chip').classList.add('active');
-                if (noteContainer) noteContainer.style.display = 'block';
-                if (noteInput) noteInput.value = secondLine;
-                
-                if (firstLine === 'NOT_INSTALLED' && valInput) {
-                    valInput.value = '-';
-                    valInput.disabled = true;
-                    valInput.style.opacity = '0.5';
-                    valInput.style.background = 'rgba(100, 116, 139, 0.2)';
-                }
-            }
-        } else {
-            if (valInput) valInput.value = savedValue;
-        }
-    }
-}
-
-function saveCurrentStep() {
+function saveStep() {
     const input = document.getElementById('valInput');
     const fullLabel = AREAS[activeArea][activeIdx];
     
     if (!currentInput[activeArea]) currentInput[activeArea] = {};
     
     let valueToSave = '';
-    if (input && input.value.trim()) valueToSave = input.value.trim();
+    if (input && input.value.trim()) {
+        valueToSave = input.value.trim();
+    }
     
     const checkedStatus = document.querySelector('input[name="paramStatus"]:checked');
     const note = document.getElementById('statusNote')?.value || '';
@@ -1095,20 +1222,21 @@ function saveCurrentStep() {
             valueToSave = 'NOT_INSTALLED';
             if (note) valueToSave += '\n' + note;
         } else {
-            if (note) valueToSave = `${checkedStatus.value}\n${note}`;
-            else valueToSave = checkedStatus.value;
+            if (note) {
+                valueToSave = `${checkedStatus.value}\n${note}`;
+            } else {
+                valueToSave = checkedStatus.value;
+            }
         }
     }
     
-    if (valueToSave) currentInput[activeArea][fullLabel] = valueToSave;
-    else delete currentInput[activeArea][fullLabel];
+    if (valueToSave) {
+        currentInput[activeArea][fullLabel] = valueToSave;
+    } else {
+        delete currentInput[activeArea][fullLabel];
+    }
     
     localStorage.setItem(DRAFT_KEYS.LOGSHEET, JSON.stringify(currentInput));
-}
-
-function saveStep() {
-    saveCurrentStep();
-    renderProgressDots();
     
     if (activeIdx < AREAS[activeArea].length - 1) {
         activeIdx++;
@@ -1120,7 +1248,39 @@ function saveStep() {
 }
 
 function goBack() {
-    saveCurrentStep();
+    const fullLabel = AREAS[activeArea][activeIdx];
+    const input = document.getElementById('valInput');
+    
+    if (!currentInput[activeArea]) currentInput[activeArea] = {};
+    
+    let valueToSave = '';
+    if (input && input.value.trim()) {
+        valueToSave = input.value.trim();
+    }
+    
+    const checkedStatus = document.querySelector('input[name="paramStatus"]:checked');
+    const note = document.getElementById('statusNote')?.value || '';
+    
+    if (checkedStatus) {
+        if (checkedStatus.value === 'NOT_INSTALLED') {
+            valueToSave = 'NOT_INSTALLED';
+            if (note) valueToSave += '\n' + note;
+        } else {
+            if (note) {
+                valueToSave = `${checkedStatus.value}\n${note}`;
+            } else {
+                valueToSave = checkedStatus.value;
+            }
+        }
+    }
+    
+    if (valueToSave) {
+        currentInput[activeArea][fullLabel] = valueToSave;
+    } else {
+        delete currentInput[activeArea][fullLabel];
+    }
+    
+    localStorage.setItem(DRAFT_KEYS.LOGSHEET, JSON.stringify(currentInput));
     
     if (activeIdx > 0) {
         activeIdx--;
@@ -1130,10 +1290,14 @@ function goBack() {
     }
 }
 
+// ============================================
+// SEND TO SHEET (UPDATED WITH PROGRESS)
+// ============================================
 async function sendToSheet() {
     if (!requireAuth()) return;
     
     const progress = showUploadProgress('Mengirim Logsheet...');
+    currentUploadController = new AbortController();
     
     let allParameters = {};
     Object.entries(currentInput).forEach(([areaName, params]) => {
@@ -1144,36 +1308,56 @@ async function sendToSheet() {
     
     const finalData = {
         type: 'LOGSHEET',
-        Operator: currentUser.name,
-        OperatorId: currentUser.id,
+        Operator: currentUser ? currentUser.name : 'Unknown',
+        OperatorId: currentUser ? currentUser.id : 'Unknown',
         ...allParameters
     };
     
-    const result = await postDataToGAS(finalData);
+    console.log('Sending Logsheet Data:', finalData);
     
-    if (result.success) {
+    try {
+        await fetch(GAS_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(finalData),
+            signal: currentUploadController.signal
+        });
+        
         progress.complete();
-        showCustomAlert('✓ Data berhasil dikirim!', 'success');
+        
+        showCustomAlert('✓ Data berhasil dikirim ke sistem!', 'success');
+        
         currentInput = {};
         localStorage.removeItem(DRAFT_KEYS.LOGSHEET);
-        setTimeout(() => navigateTo('homeScreen'), 1500);
-    } else {
+        
+        setTimeout(() => {
+            navigateTo('homeScreen');
+        }, 1500);
+        
+    } catch (error) {
+        console.error('Error sending data:', error);
         progress.error();
+        
         let offlineData = JSON.parse(localStorage.getItem(DRAFT_KEYS.LOGSHEET_OFFLINE) || '[]');
         offlineData.push(finalData);
         localStorage.setItem(DRAFT_KEYS.LOGSHEET_OFFLINE, JSON.stringify(offlineData));
-        showCustomAlert('Gagal mengirim. Data disimpan lokal.', 'error');
+        
+        setTimeout(() => {
+            showCustomAlert('Gagal mengirim. Data disimpan lokal.', 'error');
+        }, 500);
     }
 }
 
 // ============================================
 // TPM FUNCTIONS
 // ============================================
-
 function updateTPMUserInfo() {
     if (!currentUser) return;
+    
     const tpmHeaderUser = document.getElementById('tpmHeaderUser');
     const tpmInputUser = document.getElementById('tpmInputUser');
+    
     if (tpmHeaderUser) tpmHeaderUser.textContent = currentUser.name;
     if (tpmInputUser) tpmInputUser.textContent = currentUser.name;
 }
@@ -1209,11 +1393,13 @@ function resetTPMForm() {
             </div>
         `;
     }
+    
     if (photoSection) photoSection.classList.remove('has-photo');
     
     const notes = document.getElementById('tpmNotes');
-    const action = document.getElementById('tpmAction');
     if (notes) notes.value = '';
+    
+    const action = document.getElementById('tpmAction');
     if (action) action.value = '';
     
     resetTPMStatusButtons();
@@ -1281,6 +1467,9 @@ function selectTPMStatus(status) {
     }
 }
 
+// ============================================
+// SUBMIT TPM (UPDATED WITH PROGRESS)
+// ============================================
 async function submitTPMData() {
     if (!requireAuth()) return;
     
@@ -1291,16 +1480,22 @@ async function submitTPMData() {
         showCustomAlert('Pilih status kondisi terlebih dahulu!', 'error');
         return;
     }
+    
     if (!currentTPMPhoto) {
         showCustomAlert('Ambil foto dokumentasi terlebih dahulu!', 'error');
         return;
     }
+    
     if (!action) {
         showCustomAlert('Pilih tindakan yang dilakukan!', 'error');
         return;
     }
     
-    const progress = showUploadProgress('Mengupload TPM...');
+    const progress = showUploadProgress('Mengupload TPM & Foto...');
+    progress.updateText('Mengompresi foto...');
+    
+    await new Promise(resolve => setTimeout(resolve, 800));
+    progress.updateText('Mengirim data...');
     
     const tpmData = {
         type: 'TPM',
@@ -1309,70 +1504,160 @@ async function submitTPMData() {
         action: action,
         notes: notes,
         photo: currentTPMPhoto,
-        user: currentUser.name,
+        user: currentUser ? currentUser.name : 'Unknown',
         timestamp: new Date().toISOString()
     };
     
-    const result = await postDataToGAS(tpmData);
-    
-    if (result.success) {
+    try {
+        await fetch(GAS_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(tpmData)
+        });
+        
         progress.complete();
-        showCustomAlert('✓ Data TPM berhasil disimpan!', 'success');
+        
+        let tpmHistory = JSON.parse(localStorage.getItem(DRAFT_KEYS.TPM_HISTORY) || '[]');
+        tpmHistory.push({...tpmData, photo: '[UPLOADED]'});
+        localStorage.setItem(DRAFT_KEYS.TPM_HISTORY, JSON.stringify(tpmHistory));
+        
+        showCustomAlert(`✓ Data TPM ${activeTPMArea} berhasil disimpan!`, 'success');
         currentTPMPhoto = null;
+        currentTPMStatus = '';
+        
         setTimeout(() => navigateTo('tpmScreen'), 1500);
-    } else {
+        
+    } catch (error) {
         progress.error();
+        
         let offlineTPM = JSON.parse(localStorage.getItem(DRAFT_KEYS.TPM_OFFLINE) || '[]');
         offlineTPM.push(tpmData);
         localStorage.setItem(DRAFT_KEYS.TPM_OFFLINE, JSON.stringify(offlineTPM));
-        showCustomAlert('Gagal mengupload. Data disimpan lokal.', 'error');
+        
+        setTimeout(() => {
+            showCustomAlert('Gagal mengupload. Data disimpan lokal.', 'error');
+        }, 500);
     }
 }
 
 // ============================================
 // BALANCING FUNCTIONS
 // ============================================
-
 function saveBalancingDraft() {
     try {
         const draftData = {};
+        
         BALANCING_FIELDS.forEach(fieldId => {
             const element = document.getElementById(fieldId);
-            if (element) draftData[fieldId] = element.value;
+            if (element) {
+                draftData[fieldId] = element.value;
+            }
         });
         
         draftData._shift = currentShift;
         draftData._savedAt = new Date().toISOString();
         draftData._user = currentUser ? currentUser.name : 'Unknown';
+        draftData._userId = currentUser ? currentUser.id : 'unknown';
         
         localStorage.setItem(DRAFT_KEYS.BALANCING, JSON.stringify(draftData));
+        console.log('Balancing draft saved');
         updateDraftStatusIndicator();
+        
     } catch (e) {
-        console.error('Error saving draft:', e);
+        console.error('Error saving balancing draft:', e);
     }
 }
 
 function loadBalancingDraft() {
     try {
         const draftData = JSON.parse(localStorage.getItem(DRAFT_KEYS.BALANCING));
-        if (!draftData) return false;
+        
+        if (!draftData) {
+            console.log('No balancing draft found');
+            return false;
+        }
         
         let loadedCount = 0;
         BALANCING_FIELDS.forEach(fieldId => {
             const element = document.getElementById(fieldId);
-            if (element && draftData[fieldId]) {
+            if (element && draftData[fieldId] !== undefined && draftData[fieldId] !== '') {
                 element.value = draftData[fieldId];
                 loadedCount++;
             }
         });
         
-        if (loadedCount > 0) {
-            showCustomAlert(`Draft ditemukan! ${loadedCount} field diisi.`, 'success');
+        const eksporEl = document.getElementById('eksporMW');
+        if (eksporEl && eksporEl.value) {
+            handleEksporInput(eksporEl);
         }
-        return true;
+        
+        calculateLPBalance();
+        
+        if (loadedCount > 0) {
+            showCustomAlert(`Draft tersimpan ditemukan! ${loadedCount} field telah diisi.`, 'success');
+        }
+        
+        return loadedCount > 0;
+        
     } catch (e) {
+        console.error('Error loading balancing draft:', e);
         return false;
     }
+}
+
+function clearBalancingDraft() {
+    try {
+        localStorage.removeItem(DRAFT_KEYS.BALANCING);
+        console.log('Balancing draft cleared');
+        updateDraftStatusIndicator();
+    } catch (e) {
+        console.error('Error clearing balancing draft:', e);
+    }
+}
+
+function setupBalancingAutoSave() {
+    if (balancingAutoSaveInterval) {
+        clearInterval(balancingAutoSaveInterval);
+    }
+    
+    let lastData = '';
+    balancingAutoSaveInterval = setInterval(() => {
+        const currentData = JSON.stringify(getCurrentBalancingData());
+        if (currentData !== lastData && hasBalancingData()) {
+            saveBalancingDraft();
+            lastData = currentData;
+        }
+    }, 10000);
+    
+    window.addEventListener('beforeunload', () => {
+        if (hasBalancingData()) saveBalancingDraft();
+    });
+    
+    const formContainer = document.getElementById('balancingScreen');
+    if (formContainer) {
+        let timeout;
+        formContainer.addEventListener('input', (e) => {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => saveBalancingDraft(), 1000);
+            }
+        });
+    }
+}
+
+function getCurrentBalancingData() {
+    const data = {};
+    BALANCING_FIELDS.forEach(fieldId => {
+        const element = document.getElementById(fieldId);
+        if (element) data[fieldId] = element.value;
+    });
+    return data;
+}
+
+function hasBalancingData() {
+    const data = getCurrentBalancingData();
+    return Object.values(data).some(val => val !== '' && val !== null && val !== undefined);
 }
 
 function updateDraftStatusIndicator() {
@@ -1380,6 +1665,18 @@ function updateDraftStatusIndicator() {
     if (indicator) {
         const hasDraft = localStorage.getItem(DRAFT_KEYS.BALANCING) !== null;
         indicator.style.display = hasDraft ? 'flex' : 'none';
+        if (hasDraft) {
+            indicator.innerHTML = `
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <line x1="16" y1="13" x2="8" y2="13"/>
+                    <line x1="16" y1="17" x2="8" y2="17"/>
+                    <polyline points="10 9 9 9 8 9"/>
+                </svg>
+                <span>Draft tersimpan</span>
+            `;
+        }
     }
 }
 
@@ -1391,34 +1688,48 @@ function initBalancingScreen() {
     
     detectShift();
     
-    if (!loadBalancingDraft()) {
-        setDefaultDateTime();
+    const draftData = JSON.parse(localStorage.getItem(DRAFT_KEYS.BALANCING));
+    const hasDraft = draftData !== null;
+    
+    if (hasDraft) {
+        loadBalancingDraft();
+    } else {
+        loadLastBalancingData();
     }
     
     calculateLPBalance();
-    
-    const formContainer = document.getElementById('balancingScreen');
-    if (formContainer) {
-        formContainer.addEventListener('input', () => {
-            setTimeout(saveBalancingDraft, 1000);
-        });
-    }
+    setupBalancingAutoSave();
+    setTimeout(updateDraftStatusIndicator, 100);
 }
 
 function detectShift() {
     const hour = new Date().getHours();
     let shift = 3;
+    let shiftText = "Shift 3 (23:00 - 07:00)";
     
-    if (hour >= 7 && hour < 15) shift = 1;
-    else if (hour >= 15 && hour < 23) shift = 2;
+    if (hour >= 7 && hour < 15) {
+        shift = 1;
+        shiftText = "Shift 1 (07:00 - 15:00)";
+    } else if (hour >= 15 && hour < 23) {
+        shift = 2;
+        shiftText = "Shift 2 (15:00 - 23:00)";
+    }
     
     currentShift = shift;
     
     const badge = document.getElementById('currentShiftBadge');
     const info = document.getElementById('balancingShiftInfo');
+    const kegiatanNum = document.getElementById('kegiatanShiftNum');
     
     if (badge) badge.textContent = `SHIFT ${shift}`;
-    if (info) info.textContent = `Shift ${shift} • Auto Save Aktif`;
+    if (info) info.textContent = `${shiftText} • Auto Save Aktif`;
+    if (kegiatanNum) kegiatanNum.textContent = shift;
+    
+    if (badge) {
+        if (shift === 1) badge.style.background = 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)';
+        else if (shift === 2) badge.style.background = 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)';
+        else badge.style.background = 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
+    }
 }
 
 function setDefaultDateTime() {
@@ -1428,6 +1739,161 @@ function setDefaultDateTime() {
     
     if (dateInput) dateInput.value = now.toISOString().split('T')[0];
     if (timeInput) timeInput.value = now.toTimeString().slice(0, 5);
+}
+
+async function loadLastBalancingData(fromSpreadsheet = true) {
+    const loader = document.getElementById('loader');
+    const loaderText = document.querySelector('.loader-text h3');
+    
+    if (loader) loader.style.display = 'flex';
+    if (loaderText) loaderText.textContent = 'Mengambil data terakhir...';
+    
+    try {
+        let lastData = null;
+        let source = 'local';
+        
+        if (fromSpreadsheet && navigator.onLine) {
+            try {
+                const response = await fetch(`${GAS_URL}?action=getLastBalancing&t=${Date.now()}`);
+                const result = await response.json();
+                
+                if (result.success && result.data) {
+                    lastData = result.data;
+                    source = 'spreadsheet';
+                }
+            } catch (fetchError) {
+                console.warn('Gagal fetch dari spreadsheet:', fetchError);
+            }
+        }
+        
+        if (!lastData) {
+            const history = JSON.parse(localStorage.getItem(DRAFT_KEYS.BALANCING_HISTORY) || '[]');
+            if (history.length > 0) {
+                lastData = history[history.length - 1];
+                source = 'local';
+            }
+        }
+        
+        if (!lastData) {
+            setDefaultDateTime();
+            if (loader) loader.style.display = 'none';
+            return;
+        }
+        
+        const fieldMapping = {
+            'loadMW': lastData['Load_MW'],
+            'eksporMW': lastData['Ekspor_Impor_MW'],
+            'plnMW': lastData['PLN_MW'],
+            'ubbMW': lastData['UBB_MW'],
+            'pieMW': lastData['PIE_MW'],
+            'tg65MW': lastData['TG65_MW'],
+            'tg66MW': lastData['TG66_MW'],
+            'gtgMW': lastData['GTG_MW'],
+            'ss6500MW': lastData['SS6500_MW'],
+            'ss2000Via': lastData['SS2000_Via'],
+            'activePowerMW': lastData['Active_Power_MW'],
+            'reactivePowerMVAR': lastData['Reactive_Power_MVAR'],
+            'currentS': lastData['Current_S_A'],
+            'voltageV': lastData['Voltage_V'],
+            'hvs65l02MW': lastData['HVS65_L02_MW'],
+            'hvs65l02Current': lastData['HVS65_L02_Current_A'],
+            'total3BMW': lastData['Total_3B_MW'],
+            'fq1105': lastData['Produksi_Steam_SA_t/h'],
+            'stgSteam': lastData['STG_Steam_t/h'],
+            'pa2Steam': lastData['PA2_Steam_t/h'],
+            'puri2Steam': lastData['Puri2_Steam_t/h'],
+            'melterSA2': lastData['Melter_SA2_t/h'],
+            'ejectorSteam': lastData['Ejector_t/h'],
+            'glandSealSteam': lastData['Gland_Seal_t/h'],
+            'deaeratorSteam': lastData['Deaerator_t/h'],
+            'dumpCondenser': lastData['Dump_Condenser_t/h'],
+            'pcv6105': lastData['PCV6105_t/h'],
+            'pi6122': lastData['PI6122_kg/cm2'],
+            'ti6112': lastData['TI6112_C'],
+            'ti6146': lastData['TI6146_C'],
+            'ti6126': lastData['TI6126_C'],
+            'axialDisplacement': lastData['Axial_Displacement_mm'],
+            'vi6102': lastData['VI6102_μm'],
+            'te6134': lastData['TE6134_C'],
+            'ctSuFan': lastData['CT_SU_Fan'],
+            'ctSuPompa': lastData['CT_SU_Pompa'],
+            'ctSaFan': lastData['CT_SA_Fan'],
+            'ctSaPompa': lastData['CT_SA_Pompa'],
+            'kegiatanShift': lastData['Kegiatan_Shift']
+        };
+        
+        Object.entries(fieldMapping).forEach(([id, value]) => {
+            const el = document.getElementById(id);
+            if (el && value !== undefined && value !== null && value !== '') {
+                el.value = value;
+            }
+        });
+        
+        const eksporEl = document.getElementById('eksporMW');
+        if (eksporEl && eksporEl.value) {
+            handleEksporInput(eksporEl);
+        }
+        
+        calculateLPBalance();
+        setDefaultDateTime();
+        saveBalancingDraft();
+        
+        const msg = source === 'spreadsheet' 
+            ? `✓ Data terakhir dari server dimuat.`
+            : `✓ Data terakhir dari penyimpanan lokal dimuat.`;
+        
+        showCustomAlert(msg, 'success');
+        
+    } catch (e) {
+        console.error('Error loading last data:', e);
+        setDefaultDateTime();
+    } finally {
+        if (loader) loader.style.display = 'none';
+    }
+}
+
+function resetBalancingForm() {
+    if (!confirm('Yakin reset form? Semua data akan dikosongkan dan draft akan dihapus.')) {
+        return;
+    }
+    
+    clearBalancingDraft();
+    setDefaultDateTime();
+    
+    BALANCING_FIELDS.forEach(fieldId => {
+        const element = document.getElementById(fieldId);
+        if (element) {
+            element.value = '';
+        }
+    });
+    
+    const selects = ['ss2000Via', 'melterSA2', 'ejectorSteam', 'glandSealSteam'];
+    selects.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.selectedIndex = 0;
+    });
+    
+    const eksporEl = document.getElementById('eksporMW');
+    const eksporLabel = document.getElementById('eksporLabel');
+    const eksporHint = document.getElementById('eksporHint');
+    
+    if (eksporEl) {
+        eksporEl.setAttribute('data-state', '');
+        eksporEl.style.borderColor = 'rgba(148, 163, 184, 0.2)';
+        eksporEl.style.background = 'rgba(15, 23, 42, 0.6)';
+    }
+    if (eksporLabel) {
+        eksporLabel.textContent = 'Ekspor/Impor (MW)';
+        eksporLabel.style.color = '#94a3b8';
+    }
+    if (eksporHint) {
+        eksporHint.innerHTML = '💡 <strong>Minus (-) = Ekspor</strong> | <strong>Plus (+) = Impor</strong>';
+        eksporHint.style.color = '#94a3b8';
+    }
+    
+    calculateLPBalance();
+    
+    showCustomAlert('Form berhasil direset! Semua field dikosongkan.', 'success');
 }
 
 function handleEksporInput(input) {
@@ -1445,6 +1911,8 @@ function handleEksporInput(input) {
             hint.style.color = '#94a3b8';
         }
         input.style.borderColor = 'rgba(148, 163, 184, 0.2)';
+        input.style.background = 'rgba(15, 23, 42, 0.6)';
+        input.setAttribute('data-state', '');
         return;
     }
     
@@ -1453,27 +1921,70 @@ function handleEksporInput(input) {
             label.textContent = 'Ekspor (MW)';
             label.style.color = '#10b981';
         }
+        if (hint) {
+            hint.innerHTML = '✓ Posisi: <strong>Ekspor ke Grid</strong> (Nilai negatif)';
+            hint.style.color = '#10b981';
+        }
         input.style.borderColor = '#10b981';
+        input.style.background = 'rgba(16, 185, 129, 0.05)';
+        input.setAttribute('data-state', 'ekspor');
+        
     } else if (value > 0) {
         if (label) {
             label.textContent = 'Impor (MW)';
             label.style.color = '#f59e0b';
         }
+        if (hint) {
+            hint.innerHTML = '✓ Posisi: <strong>Impor dari Grid</strong> (Nilai positif)';
+            hint.style.color = '#f59e0b';
+        }
         input.style.borderColor = '#f59e0b';
+        input.style.background = 'rgba(245, 158, 11, 0.05)';
+        input.setAttribute('data-state', 'impor');
+        
+    } else {
+        if (label) {
+            label.textContent = 'Ekspor/Impor (MW)';
+            label.style.color = '#94a3b8';
+        }
+        if (hint) {
+            hint.innerHTML = '⚪ Posisi: <strong>Netral</strong> (Nilai 0)';
+            hint.style.color = '#64748b';
+        }
+        input.style.borderColor = 'rgba(148, 163, 184, 0.2)';
+        input.style.background = 'rgba(15, 23, 42, 0.6)';
+        input.setAttribute('data-state', '');
     }
+}
+
+function getEksporImporValue() {
+    const input = document.getElementById('eksporMW');
+    if (!input || !input.value) return 0;
+    const value = parseFloat(input.value);
+    return isNaN(value) ? 0 : value;
 }
 
 function calculateLPBalance() {
     const produksi = parseFloat(document.getElementById('fq1105')?.value) || 0;
-    let totalKonsumsi = 0;
     
-    ['stgSteam', 'pa2Steam', 'puri2Steam', 'melterSA2', 'ejectorSteam', 
-     'glandSealSteam', 'deaeratorSteam', 'dumpCondenser', 'pcv6105'].forEach(id => {
+    const konsumsiItems = [
+        'stgSteam', 'pa2Steam', 'puri2Steam', 'deaeratorSteam',
+        'dumpCondenser', 'pcv6105'
+    ];
+    
+    let totalKonsumsi = 0;
+    konsumsiItems.forEach(id => {
         totalKonsumsi += parseFloat(document.getElementById(id)?.value) || 0;
     });
     
+    totalKonsumsi += parseFloat(document.getElementById('melterSA2')?.value) || 0;
+    totalKonsumsi += parseFloat(document.getElementById('ejectorSteam')?.value) || 0;
+    totalKonsumsi += parseFloat(document.getElementById('glandSealSteam')?.value) || 0;
+    
     const totalDisplay = document.getElementById('totalKonsumsiSteam');
-    if (totalDisplay) totalDisplay.textContent = totalKonsumsi.toFixed(1) + ' t/h';
+    if (totalDisplay) {
+        totalDisplay.textContent = totalKonsumsi.toFixed(1) + ' t/h';
+    }
     
     const balance = produksi - totalKonsumsi;
     
@@ -1487,70 +1998,472 @@ function calculateLPBalance() {
     if (balance < 0) {
         if (balanceLabel) balanceLabel.textContent = 'LPS Impor dari SU 3A (t/h)';
         if (balanceStatus) {
-            balanceStatus.textContent = 'Posisi: Impor dari 3A';
+            balanceStatus.textContent = 'Posisi: Impor dari 3A (Produksi < Konsumsi)';
             balanceStatus.style.color = '#f59e0b';
+        }
+        if (balanceInput) {
+            balanceInput.style.borderColor = '#f59e0b';
+            balanceInput.style.color = '#f59e0b';
+            balanceInput.style.background = 'rgba(245, 158, 11, 0.1)';
+        }
+        if (balanceField) {
+            balanceField.style.borderColor = 'rgba(245, 158, 11, 0.3)';
+            balanceField.style.background = 'rgba(245, 158, 11, 0.05)';
         }
     } else {
         if (balanceLabel) balanceLabel.textContent = 'LPS Ekspor ke SU 3A (t/h)';
         if (balanceStatus) {
-            balanceStatus.textContent = 'Posisi: Ekspor ke 3A';
+            balanceStatus.textContent = 'Posisi: Ekspor ke 3A (Produksi > Konsumsi)';
             balanceStatus.style.color = '#10b981';
         }
+        if (balanceInput) {
+            balanceInput.style.borderColor = '#10b981';
+            balanceInput.style.color = '#10b981';
+            balanceInput.style.background = 'rgba(16, 185, 129, 0.1)';
+        }
+        if (balanceField) {
+            balanceField.style.borderColor = 'rgba(16, 185, 129, 0.3)';
+            balanceField.style.background = 'rgba(16, 185, 129, 0.05)';
+        }
     }
+    
+    return balance;
 }
 
+function formatWhatsAppMessage(data) {
+    const formatNum = (num, maxDecimals = 2) => {
+        if (num === undefined || num === null || num === '' || isNaN(num)) return '-';
+        const parsed = parseFloat(num);
+        if (parsed === 0) return '0';
+        return parsed.toLocaleString('id-ID', {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: maxDecimals
+        });
+    };
+    
+    const formatInt = (num) => {
+        if (num === undefined || num === null || num === '' || isNaN(num)) return '-';
+        return parseInt(num).toLocaleString('id-ID');
+    };
+    
+    const tglParts = data.Tanggal.split('-');
+    const bulanIndo = {
+        '01': 'Januari', '02': 'Februari', '03': 'Maret', '04': 'April',
+        '05': 'Mei', '06': 'Juni', '07': 'Juli', '08': 'Agustus',
+        '09': 'September', '10': 'Oktober', '11': 'November', '12': 'Desember'
+    };
+    const tglIndo = `${tglParts[2]} ${bulanIndo[tglParts[1]]} ${tglParts[0]}`;
+    
+    let message = `*Update STG 17,5 MW*\n`;
+    message += `Tgl ${tglIndo}\n`;
+    message += `Jam ${data.Jam}\n\n`;
+    
+    message += `*Output Power STG 17,5*\n`;
+    message += `⠂ Load = ${formatNum(data.Load_MW)} MW\n`;
+    message += `⠂ ${data.Ekspor_Impor_Status} = ${formatNum(Math.abs(data.Ekspor_Impor_MW), 3)} MW\n\n`;
+    
+    message += `*Balance Power SCADA*\n`;
+    message += `⠂ PLN = ${formatNum(data.PLN_MW)}MW\n`;
+    message += `⠂ UBB = ${formatNum(data.UBB_MW)}MW\n`;
+    message += `⠂ PIE = ${formatNum(data.PIE_MW)} MW\n`;
+    message += `⠂ TG-65 = ${formatNum(data.TG65_MW)} MW\n`;
+    message += `⠂ TG-66 = ${formatNum(data.TG66_MW)} MW\n`;
+    message += `⠂ GTG = ${formatNum(data.GTG_MW)} MW\n\n`;
+    
+    message += `*Konsumsi Power 3B*\n`;
+    message += `● SS-6500 (TR-Main 01) = ${formatNum(data.SS6500_MW, 3)} MW\n`;
+    message += `● SS-2000 *Via ${data.SS2000_Via}*\n`;
+    message += `  ⠂ Active power = ${formatNum(data.Active_Power_MW, 3)} MW\n`;
+    message += `  ⠂ Reactive power = ${formatNum(data.Reactive_Power_MVAR, 3)} MVAR\n`;
+    message += `  ⠂ Current S = ${formatNum(data.Current_S_A, 1)} A\n`;
+    message += `  ⠂ Voltage = ${formatInt(data.Voltage_V)} V\n`;
+    message += `  ⠂ (HVS65 L02) = ${formatNum(data.HVS65_L02_MW, 3)} MW (${formatInt(data.HVS65_L02_Current_A)} A)\n`;
+    message += `● Total 3B = ${formatNum(data.Total_3B_MW, 3)}MW\n\n`;
+    
+    message += `*Produksi Steam SA*\n`;
+    message += `⠂ FQ-1105 = ${formatNum(data['Produksi_Steam_SA_t/h'], 1)} t/h\n\n`;
+    
+    message += `*Konsumsi Steam 3B*\n`;
+    message += `⠂ STG 17,5 = ${formatNum(data['STG_Steam_t/h'], 1)} t/h\n`;
+    message += `⠂ PA2 = ${formatNum(data['PA2_Steam_t/h'], 1)} t/h\n`;
+    message += `⠂ Puri2 = ${formatNum(data['Puri2_Steam_t/h'], 1)} t/h\n`;
+    message += `⠂ Melter SA2 = ${formatNum(data['Melter_SA2_t/h'], 1)} t/h\n`;
+    message += `⠂ Ejector = ${formatNum(data['Ejector_t/h'], 1)} t/h\n`;
+    message += `⠂ Gland Seal = ${formatNum(data['Gland_Seal_t/h'], 1)} t/h\n`;
+    message += `⠂ Deaerator = ${formatNum(data['Deaerator_t/h'], 1)} t/h\n`;
+    message += `⠂ Dump Condenser = ${formatNum(data['Dump_Condenser_t/h'], 1)} t/h\n`;
+    message += `⠂ PCV-6105 = ${formatNum(data['PCV6105_t/h'], 1)} t/h\n`;
+    message += `*⠂ Total Konsumsi* = ${formatNum(data['Total_Konsumsi_Steam_t/h'], 1)} t/h\n\n`;
+    
+    message += `*${data.LPS_Balance_Status}* = ${formatNum(data['LPS_Balance_t/h'], 1)} t/h\n\n`;
+    
+    message += `*Monitoring*\n`;
+    message += `⠂ Steam Extraction PI-6122 = ${formatNum(data['PI6122_kg/cm2'], 2)} kg/cm² & TI-6112 = ${formatNum(data['TI6112_C'], 1)} °C\n`;
+    message += `⠂ Temp. Cooling Air Inlet (TI-6146/47) = ${formatNum(data['TI6146_C'], 2)} °C\n`;
+    message += `⠂ Temp. Lube Oil (TI-6126) = ${formatNum(data['TI6126_C'], 2)} °C\n`;
+    message += `⠂ Axial Displacement = ${formatNum(data['Axial_Displacement_mm'], 2)} mm (High : 0,6 mm)\n`;
+    message += `⠂ Vibrasi VI-6102 = ${formatNum(data['VI6102_μm'], 2)} μm (High : 85 μm)\n`;
+    message += `⠂ Temp. Journal Bearing TE-6134 = ${formatNum(data['TE6134_C'], 1)} °C (High : 115 °C)\n`;
+    message += `⠂ CT SU = Fan : ${formatInt(data['CT_SU_Fan'])} & Pompa : ${formatInt(data['CT_SU_Pompa'])}\n`;
+    message += `⠂ CT SA = Fan : ${formatInt(data['CT_SA_Fan'])} & Pompa : ${formatInt(data['CT_SA_Pompa'])}\n\n`;
+    
+    message += `*Kegiatan Shift ${data.Shift}*\n`;
+    message += data.Kegiatan_Shift || '-';
+    
+    return message;
+}
+
+// ============================================
+// SUBMIT BALANCING (UPDATED WITH PROGRESS)
+// ============================================
 async function submitBalancingData() {
     if (!requireAuth()) return;
     
-    const progress = showUploadProgress('Mengirim Balancing...');
+    const requiredFields = ['loadMW', 'fq1105', 'stgSteam'];
+    for (let id of requiredFields) {
+        const el = document.getElementById(id);
+        if (!el || !el.value) {
+            showCustomAlert(`Field ${id} wajib diisi!`, 'error');
+            if (el) el.focus();
+            return;
+        }
+    }
     
-    const eksporValue = parseFloat(document.getElementById('eksporMW')?.value) || 0;
+    const progress = showUploadProgress('Mengirim Data Balancing...');
+    currentUploadController = new AbortController();
+    
+    const eksporValue = getEksporImporValue();
     const lpBalance = calculateLPBalance();
     
     const balancingData = {
         type: 'BALANCING',
-        Operator: currentUser.name,
+        Operator: currentUser ? currentUser.name : 'Unknown',
+        Timestamp: new Date().toISOString(),
+        
         Tanggal: document.getElementById('balancingDate')?.value || '',
         Jam: document.getElementById('balancingTime')?.value || '',
         Shift: currentShift,
+        
         'Load_MW': parseFloat(document.getElementById('loadMW')?.value) || 0,
         'Ekspor_Impor_MW': eksporValue,
         'Ekspor_Impor_Status': eksporValue > 0 ? 'Impor' : (eksporValue < 0 ? 'Ekspor' : 'Netral'),
+        
+        'PLN_MW': parseFloat(document.getElementById('plnMW')?.value) || 0,
+        'UBB_MW': parseFloat(document.getElementById('ubbMW')?.value) || 0,
+        'PIE_MW': parseFloat(document.getElementById('pieMW')?.value) || 0,
+        'TG65_MW': parseFloat(document.getElementById('tg65MW')?.value) || 0,
+        'TG66_MW': parseFloat(document.getElementById('tg66MW')?.value) || 0,
+        'GTG_MW': parseFloat(document.getElementById('gtgMW')?.value) || 0,
+        
+        'SS6500_MW': parseFloat(document.getElementById('ss6500MW')?.value) || 0,
+        'SS2000_Via': document.getElementById('ss2000Via')?.value || 'TR-Main01',
+        'Active_Power_MW': parseFloat(document.getElementById('activePowerMW')?.value) || 0,
+        'Reactive_Power_MVAR': parseFloat(document.getElementById('reactivePowerMVAR')?.value) || 0,
+        'Current_S_A': parseFloat(document.getElementById('currentS')?.value) || 0,
+        'Voltage_V': parseFloat(document.getElementById('voltageV')?.value) || 0,
+        'HVS65_L02_MW': parseFloat(document.getElementById('hvs65l02MW')?.value) || 0,
+        'HVS65_L02_Current_A': parseFloat(document.getElementById('hvs65l02Current')?.value) || 0,
+        'Total_3B_MW': parseFloat(document.getElementById('total3BMW')?.value) || 0,
+        
         'Produksi_Steam_SA_t/h': parseFloat(document.getElementById('fq1105')?.value) || 0,
+        'STG_Steam_t/h': parseFloat(document.getElementById('stgSteam')?.value) || 0,
+        'PA2_Steam_t/h': parseFloat(document.getElementById('pa2Steam')?.value) || 0,
+        'Puri2_Steam_t/h': parseFloat(document.getElementById('puri2Steam')?.value) || 0,
+        'Melter_SA2_t/h': parseFloat(document.getElementById('melterSA2')?.value) || 0,
+        'Ejector_t/h': parseFloat(document.getElementById('ejectorSteam')?.value) || 0,
+        'Gland_Seal_t/h': parseFloat(document.getElementById('glandSealSteam')?.value) || 0,
+        'Deaerator_t/h': parseFloat(document.getElementById('deaeratorSteam')?.value) || 0,
+        'Dump_Condenser_t/h': parseFloat(document.getElementById('dumpCondenser')?.value) || 0,
+        'PCV6105_t/h': parseFloat(document.getElementById('pcv6105')?.value) || 0,
+        'Total_Konsumsi_Steam_t/h': parseFloat(document.getElementById('totalKonsumsiSteam')?.textContent) || 0,
         'LPS_Balance_t/h': Math.abs(lpBalance),
         'LPS_Balance_Status': lpBalance < 0 ? 'Impor dari 3A' : 'Ekspor ke 3A',
+        
+        'PI6122_kg/cm2': parseFloat(document.getElementById('pi6122')?.value) || 0,
+        'TI6112_C': parseFloat(document.getElementById('ti6112')?.value) || 0,
+        'TI6146_C': parseFloat(document.getElementById('ti6146')?.value) || 0,
+        'TI6126_C': parseFloat(document.getElementById('ti6126')?.value) || 0,
+        'Axial_Displacement_mm': parseFloat(document.getElementById('axialDisplacement')?.value) || 0,
+        'VI6102_μm': parseFloat(document.getElementById('vi6102')?.value) || 0,
+        'TE6134_C': parseFloat(document.getElementById('te6134')?.value) || 0,
+        'CT_SU_Fan': parseInt(document.getElementById('ctSuFan')?.value) || 0,
+        'CT_SU_Pompa': parseInt(document.getElementById('ctSuPompa')?.value) || 0,
+        'CT_SA_Fan': parseInt(document.getElementById('ctSaFan')?.value) || 0,
+        'CT_SA_Pompa': parseInt(document.getElementById('ctSaPompa')?.value) || 0,
+        
         'Kegiatan_Shift': document.getElementById('kegiatanShift')?.value || ''
     };
     
-    const result = await postDataToGAS(balancingData);
-    
-    if (result.success) {
+    try {
+        progress.updateText('Menghitung ulang balance...');
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        progress.updateText('Mengirim ke server...');
+        await fetch(GAS_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(balancingData),
+            signal: currentUploadController.signal
+        });
+        
         progress.complete();
-        localStorage.removeItem(DRAFT_KEYS.BALANCING);
+        
         showCustomAlert('✓ Data Balancing berhasil dikirim!', 'success');
-        setTimeout(() => navigateTo('homeScreen'), 1000);
-    } else {
+        
+        let balancingHistory = JSON.parse(localStorage.getItem(DRAFT_KEYS.BALANCING_HISTORY) || '[]');
+        balancingHistory.push({
+            ...balancingData,
+            submittedAt: new Date().toISOString()
+        });
+        localStorage.setItem(DRAFT_KEYS.BALANCING_HISTORY, JSON.stringify(balancingHistory));
+        
+        setTimeout(() => {
+            const waMessage = encodeURIComponent(formatWhatsAppMessage(balancingData));
+            const waNumber = '6281382160345';
+            window.open(`https://wa.me/${waNumber}?text=${waMessage}`, '_blank');
+            navigateTo('homeScreen');
+        }, 1000);
+        
+    } catch (error) {
+        console.error('Balancing Error:', error);
         progress.error();
-        showCustomAlert('Gagal mengirim. Data disimpan lokal.', 'error');
+        
+        let offlineBalancing = JSON.parse(localStorage.getItem(DRAFT_KEYS.BALANCING_OFFLINE) || '[]');
+        offlineBalancing.push(balancingData);
+        localStorage.setItem(DRAFT_KEYS.BALANCING_OFFLINE, JSON.stringify(offlineBalancing));
+        
+        setTimeout(() => {
+            showCustomAlert('Gagal mengirim. Data disimpan lokal.', 'error');
+        }, 500);
     }
 }
 
 // ============================================
-// INITIALIZATION
+// PWA INSTALL HANDLER
 // ============================================
+let deferredPrompt = null;
+let installBannerShown = false;
 
-window.addEventListener('DOMContentLoaded', () => {
-    totalParams = Object.values(AREAS).reduce((acc, arr) => acc + arr.length, 0);
+window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
     
-    const versionDisplay = document.getElementById('versionDisplay');
-    if (versionDisplay) versionDisplay.textContent = APP_VERSION;
-    
-    initAuth();
-    setupLoginListeners();
+    if (!isAppInstalled() && !installBannerShown) {
+        setTimeout(() => {
+            showCustomInstallBanner();
+        }, 3000);
+    }
 });
 
-// Global error handler
-window.onerror = function(msg, url, lineNo, columnNo, error) {
-    console.error('Global error:', msg, 'Line:', lineNo);
-    return false;
-};
+window.addEventListener('appinstalled', () => {
+    hideCustomInstallBanner();
+    deferredPrompt = null;
+    installBannerShown = true;
+    showToast('✓ Aplikasi berhasil diinstall!', 'success');
+});
+
+function showCustomInstallBanner() {
+    if (document.getElementById('customInstallBanner')) return;
+    
+    const banner = document.createElement('div');
+    banner.id = 'customInstallBanner';
+    banner.innerHTML = `
+        <div style="
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            border-radius: 20px;
+            padding: 32px 24px;
+            width: 90%;
+            max-width: 340px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+            z-index: 10002;
+            text-align: center;
+            animation: scaleIn 0.3s ease;
+        ">
+            <div style="
+                width: 80px;
+                height: 80px;
+                margin: 0 auto 20px;
+                background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+                border-radius: 20px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 40px;
+                box-shadow: 0 10px 25px rgba(245, 158, 11, 0.3);
+            ">
+                ⚡
+            </div>
+            
+            <h3 style="
+                color: #f8fafc;
+                font-size: 1.25rem;
+                font-weight: 700;
+                margin-bottom: 8px;
+            ">
+                Install Aplikasi
+            </h3>
+            
+            <p style="
+                color: #94a3b8;
+                font-size: 0.875rem;
+                margin-bottom: 24px;
+                line-height: 1.5;
+            ">
+                Tambahkan Turbine Log ke layar utama untuk akses lebih cepat dan pengalaman seperti aplikasi native.
+            </p>
+            
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+                <button onclick="installPWA()" style="
+                    width: 100%;
+                    padding: 14px 24px;
+                    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+                    color: white;
+                    border: none;
+                    border-radius: 12px;
+                    font-size: 1rem;
+                    font-weight: 600;
+                    cursor: pointer;
+                    transition: transform 0.2s;
+                " onmouseover="this.style.transform='scale(1.02)'" onmouseout="this.style.transform='scale(1)'">
+                    Install Sekarang
+                </button>
+                
+                <button onclick="hideCustomInstallBanner()" style="
+                    width: 100%;
+                    padding: 12px 24px;
+                    background: transparent;
+                    color: #64748b;
+                    border: 1px solid rgba(148, 163, 184, 0.2);
+                    border-radius: 12px;
+                    font-size: 0.9375rem;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                ">
+                    Nanti Saja
+                </button>
+            </div>
+            
+            <div style="
+                margin-top: 20px;
+                padding-top: 20px;
+                border-top: 1px solid rgba(148, 163, 184, 0.1);
+                display: flex;
+                justify-content: center;
+                gap: 20px;
+                font-size: 0.75rem;
+                color: #64748b;
+            ">
+                <span style="display: flex; align-items: center; gap: 4px;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                    </svg>
+                    Cepat
+                </span>
+                <span style="display: flex; align-items: center; gap: 4px;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                    </svg>
+                    Aman
+                </span>
+                <span style="display: flex; align-items: center; gap: 4px;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2v20M2 12h20"/>
+                    </svg>
+                    Offline
+                </span>
+            </div>
+        </div>
+        
+        <div style="
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(4px);
+            z-index: 10001;
+        " onclick="hideCustomInstallBanner()"></div>
+    `;
+    
+    document.body.appendChild(banner);
+    installBannerShown = true;
+}
+
+function hideCustomInstallBanner() {
+    const banner = document.getElementById('customInstallBanner');
+    if (banner) {
+        banner.style.animation = 'fadeOut 0.2s ease';
+        setTimeout(() => banner.remove(), 200);
+    }
+}
+
+async function installPWA() {
+    if (!deferredPrompt) {
+        showToast('Aplikasi sudah terinstall atau browser tidak mendukung', 'info');
+        return;
+    }
+    
+    deferredPrompt.prompt();
+    
+    const { outcome } = await deferredPrompt.userChoice;
+    
+    if (outcome === 'accepted') {
+        console.log('User installed PWA');
+        hideCustomInstallBanner();
+        showToast('✓ Menginstall aplikasi...', 'success');
+    } else {
+        console.log('User dismissed install');
+        hideCustomInstallBanner();
+    }
+    
+    deferredPrompt = null;
+}
+
+function isAppInstalled() {
+    return window.matchMedia('(display-mode: standalone)').matches || 
+           window.navigator.standalone === true ||
+           document.referrer.includes('android-app://');
+}
+
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes scaleIn {
+        from { transform: translate(-50%, -50%) scale(0.9); opacity: 0; }
+        to { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+    }
+    @keyframes fadeOut {
+        from { opacity: 1; }
+        to { opacity: 0; }
+    }
+`;
+document.head.appendChild(style);
+
+function showToast(msg, type) {
+    console.log(`[${type}] ${msg}`);
+}
+
+document.addEventListener('keydown', (e) => {
+    const paramScreen = document.getElementById('paramScreen');
+    if (!paramScreen || !paramScreen.classList.contains('active')) return;
+    
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        if (currentInputType !== 'select') saveStep();
+    } else if (e.key === 'Escape') {
+        goBack();
+    }
+});
+
+// Toggle SS2000 Detail visibility
+function toggleSS2000Detail() {
+    const select = document.getElementById('ss2000Via');
+    const detail = document.getElementById('ss2000Detail');
+    if (select && detail) {
+        detail.style.display = select.value ? 'block' : 'none';
+    }
+}
