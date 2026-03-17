@@ -1,20 +1,20 @@
 /**
  * =============================================================================
- * TURBINE LOGSHEET PRO - FRONTEND CORE
- * Version: 2.0.0 Final (Secure Auth Edition)
+ * TURBINE LOGSHEET PRO - FRONTEND FINAL (CORS Fixed)
+ * Version: 2.0.1
  * =============================================================================
  */
 
 // ============================================
 // CONFIGURATION & CONSTANTS
 // ============================================
-const APP_VERSION = '1.3.3';
-const GAS_URL = "https://script.google.com/macros/s/AKfycbxHFKuGztYJIHLn8thneJbgGHACUsE3nEDQWyUh2xBa8mTY_WuGh8ZmRX7MVKMbAVl4/exec";
+const APP_VERSION = '2.0.1';
+const GAS_URL = "https://script.google.com/macros/s/AKfycbywYL64TF3UzC1vpQ0US8CJT6iVnIGzwvXZ0KLyrsX4qW-D_C_qBxdTGYpH9qn038Iq/exec";
 
 const AUTH_CONFIG = {
     SESSION_KEY: 'turbine_session_v2',
     USER_KEY: 'turbine_user_v2',
-    SESSION_DURATION: 8 * 60 * 60 * 1000, // 8 jam
+    SESSION_DURATION: 8 * 60 * 60 * 1000,
     MAX_LOGIN_ATTEMPTS: 5,
     LOCKOUT_KEY: 'login_lockout_until',
     FAILED_ATTEMPTS_KEY: 'failed_login_count',
@@ -240,14 +240,56 @@ if ('serviceWorker' in navigator) {
 }
 
 // ============================================
-// ENHANCED AUTHENTICATION SYSTEM
+// API HELPER (CORS FIXED)
 // ============================================
 
 /**
- * Inisialisasi Autentikasi - Check existing session
+ * Generic API Call - CORS Compatible
+ * CRITICAL: Do NOT add Content-Type header!
  */
+async function apiCall(payload, silent = false) {
+    let progress = null;
+    
+    try {
+        if (!silent && payload.type !== 'LOGIN') {
+            progress = showUploadProgress('Mengirim data...');
+        }
+        
+        // CRITICAL FIX: No Content-Type header!
+        // Browser will set it as text/plain automatically
+        const response = await fetch(GAS_URL, {
+            method: 'POST',
+            mode: 'cors',
+            body: JSON.stringify(payload)
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const result = await response.json();
+        
+        if (progress) progress.complete();
+        
+        return result;
+        
+    } catch (error) {
+        console.error('API Call Error:', error);
+        if (progress) progress.error();
+        
+        return {
+            success: false,
+            error: 'network_error',
+            message: 'Gagal terhubung ke server. Periksa koneksi internet.'
+        };
+    }
+}
+
+// ============================================
+// AUTHENTICATION SYSTEM
+// ============================================
+
 function initAuth() {
-    // Check client-side lockout first
     if (isClientLockedOut()) {
         showClientLockoutScreen();
         return;
@@ -301,13 +343,7 @@ function saveSession(user, rememberMe = false) {
 function isSessionValid(session) {
     if (!session || !session.expiresAt) return false;
     if (Date.now() > session.expiresAt) return false;
-    
-    // Validate token presence (if using token-based auth)
-    if (session.user && !session.user.sessionToken) {
-        // Backward compatibility: accept old format but refresh
-        return true;
-    }
-    
+    if (session.user && !session.user.sessionToken) return true;
     return true;
 }
 
@@ -318,9 +354,6 @@ function clearSession() {
     isAuthenticated = false;
 }
 
-/**
- * Client-Side Lockout Management
- */
 function isClientLockedOut() {
     const lockoutUntil = localStorage.getItem(AUTH_CONFIG.LOCKOUT_KEY);
     if (lockoutUntil) {
@@ -328,7 +361,6 @@ function isClientLockedOut() {
         if (now < parseInt(lockoutUntil)) {
             return true;
         } else {
-            // Clear expired lockout
             localStorage.removeItem(AUTH_CONFIG.LOCKOUT_KEY);
             localStorage.removeItem(AUTH_CONFIG.FAILED_ATTEMPTS_KEY);
         }
@@ -342,13 +374,11 @@ function showClientLockoutScreen() {
     
     showLoginError(`Akun terkunci. Tunggu ${remainingMinutes} menit.`, 'locked');
     
-    // Disable inputs
     const inputs = document.querySelectorAll('#loginScreen input, #loginScreen button');
     inputs.forEach(el => {
         if (!el.classList.contains('alert-btn')) el.disabled = true;
     });
     
-    // Re-enable after lockout
     setTimeout(() => {
         inputs.forEach(el => el.disabled = false);
         hideLoginError();
@@ -360,9 +390,6 @@ function setClientLockout(minutes) {
     localStorage.setItem(AUTH_CONFIG.LOCKOUT_KEY, until.toString());
 }
 
-/**
- * Setup Login Listeners
- */
 function setupLoginListeners() {
     const nameInput = document.getElementById('operatorName');
     const passInput = document.getElementById('operatorPassword');
@@ -387,7 +414,6 @@ function setupLoginListeners() {
         });
     }
     
-    // Toggle password visibility
     const toggleBtn = document.getElementById('togglePassword');
     if (toggleBtn && passInput) {
         toggleBtn.addEventListener('click', () => {
@@ -430,11 +456,7 @@ function showLoginError(message, type = 'error') {
     }
 }
 
-/**
- * Main Login Function - With Backend Verification
- */
 async function loginOperator() {
-    // Check client lockout
     if (isClientLockedOut()) {
         showClientLockoutScreen();
         return;
@@ -444,35 +466,21 @@ async function loginOperator() {
     const passInput = document.getElementById('operatorPassword');
     const loginBtn = document.querySelector('#loginScreen .btn-primary');
     
-    if (!nameInput || !passInput) {
-        console.error('Login inputs not found');
-        return;
-    }
+    if (!nameInput || !passInput) return;
     
     const username = nameInput.value.trim();
     const password = passInput.value;
     
-    // Validation
     if (!username || !password) {
         showLoginError('Username dan password wajib diisi!');
-        if (!username) nameInput.focus();
-        else passInput.focus();
-        return;
-    }
-    
-    if (username.length < 3) {
-        showLoginError('Username minimal 3 karakter!');
-        nameInput.focus();
         return;
     }
     
     if (password.length < AUTH_CONFIG.PASSWORD_MIN_LENGTH) {
         showLoginError(`Password minimal ${AUTH_CONFIG.PASSWORD_MIN_LENGTH} karakter!`);
-        passInput.focus();
         return;
     }
     
-    // Show loading state
     const originalBtnText = loginBtn ? loginBtn.innerHTML : '';
     if (loginBtn) {
         loginBtn.disabled = true;
@@ -480,38 +488,17 @@ async function loginOperator() {
     }
     
     try {
-        // Get client IP (optional, for logging)
-        const clientIP = await getClientIP().catch(() => 'unknown');
-        
-        // Send to backend via HTTPS (CORS mode for JSON response)
-        const response = await fetch(GAS_URL, {
-            method: 'POST',
-            mode: 'cors',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                type: 'LOGIN',
-                username: username,
-                password: password,
-                clientIP: clientIP,
-                timestamp: new Date().toISOString(),
-                clientVersion: APP_VERSION
-            })
+        const result = await apiCall({
+            type: 'LOGIN',
+            username: username,
+            password: password,
+            clientIP: 'web-client',
+            timestamp: new Date().toISOString(),
+            clientVersion: APP_VERSION
         });
         
-        // Handle HTTP errors
-        if (response.status === 429) {
-            throw { error: 'too_many_requests', message: 'Terlalu banyak request. Silakan tunggu.' };
-        }
-        
-        const result = await response.json();
-        
         if (result.success) {
-            // Success - clear any failed attempts
             localStorage.removeItem(AUTH_CONFIG.FAILED_ATTEMPTS_KEY);
-            
-            // Save session
             saveSession(result.user, false);
             currentUser = result.user;
             isAuthenticated = true;
@@ -525,19 +512,12 @@ async function loginOperator() {
             }, 800);
             
         } else {
-            // Handle specific backend errors
             handleBackendLoginError(result, username);
         }
         
     } catch (error) {
         console.error('Login error:', error);
-        
-        // Network error or parsing error
-        if (error.error === 'too_many_requests') {
-            showLoginError(error.message, 'warning');
-        } else {
-            showLoginError('Gagal terhubung ke server. Periksa koneksi internet.', 'warning');
-        }
+        showLoginError('Gagal terhubung ke server. Periksa koneksi internet.', 'error');
         
     } finally {
         if (loginBtn) {
@@ -552,7 +532,6 @@ function handleBackendLoginError(result, username) {
     localStorage.setItem(AUTH_CONFIG.FAILED_ATTEMPTS_KEY, failedAttempts.toString());
     
     if (result.error === 'account_locked' || result.lockoutMinutes) {
-        // Server imposed lockout
         setClientLockout(result.lockoutMinutes || 30);
         showClientLockoutScreen();
         
@@ -563,14 +542,12 @@ function handleBackendLoginError(result, username) {
         showLoginError('Akun tidak aktif. Hubungi administrator.', 'locked');
         
     } else {
-        // Generic auth failure
         let msg = result.message || 'Username atau password salah';
         if (result.warning) {
             msg += ` (${result.warning})`;
         }
         showLoginError(msg);
         
-        // Check if we should client-lock based on accumulated failures
         if (failedAttempts >= AUTH_CONFIG.MAX_LOGIN_ATTEMPTS) {
             setClientLockout(30);
             showClientLockoutScreen();
@@ -580,14 +557,12 @@ function handleBackendLoginError(result, username) {
 
 function logoutOperator() {
     if (confirm('Apakah Anda yakin ingin keluar?')) {
-        // Backup drafts before logout
         if (Object.keys(currentInput).length > 0) {
             localStorage.setItem(DRAFT_KEYS.LOGSHEET_BACKUP, JSON.stringify(currentInput));
         }
         
         clearSession();
         
-        // Clear inputs
         const nameInput = document.getElementById('operatorName');
         const passInput = document.getElementById('operatorPassword');
         if (nameInput) nameInput.value = '';
@@ -604,12 +579,10 @@ function showLoginScreen() {
     const loginScreen = document.getElementById('loginScreen');
     if (loginScreen) {
         loginScreen.classList.add('active');
-        // Re-enable inputs if they were disabled by lockout
         const inputs = loginScreen.querySelectorAll('input, button');
         inputs.forEach(el => el.disabled = false);
     }
     
-    // Pre-fill username if remembered
     const savedUser = localStorage.getItem(AUTH_CONFIG.USER_KEY);
     if (savedUser) {
         try {
@@ -641,7 +614,6 @@ function updateUIForAuthenticatedUser() {
         if (el) el.textContent = currentUser.name;
     });
     
-    // Show admin features if applicable
     if (currentUser.role === 'admin') {
         document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'block');
     }
@@ -657,67 +629,26 @@ function requireAuth() {
     return true;
 }
 
-async function getClientIP() {
-    try {
-        const response = await fetch('https://api.ipify.org?format=json');
-        const data = await response.json();
-        return data.ip;
-    } catch (e) {
-        return 'unknown';
-    }
-}
-
-// ============================================
-// BATCH REGISTRATION (Admin Only)
-// ============================================
-
-/**
- * Batch Register Users - Requires Admin Authentication
- * @param {Array} usersArray - Array of {username, password, role}
- * @param {string} adminPassword - Current admin password for verification
- */
 async function batchRegisterUsers(usersArray, adminPassword) {
     if (!currentUser || currentUser.role !== 'admin') {
         showCustomAlert('Hanya admin yang dapat menggunakan fitur ini!', 'error');
         return;
     }
     
-    try {
-        const response = await fetch(GAS_URL, {
-            method: 'POST',
-            mode: 'cors',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                type: 'BATCH_REGISTER',
-                adminUsername: currentUser.name,
-                adminPassword: adminPassword,
-                users: usersArray
-            })
-        });
-        
-        const result = await response.json();
-        
-        if (result.success) {
-            showCustomAlert(
-                `Registrasi berhasil! ${result.successful} dari ${result.processed} user didaftarkan.`, 
-                'success'
-            );
-        } else {
-            showCustomAlert(result.message || 'Gagal melakukan registrasi', 'error');
-        }
-        
-        return result;
-        
-    } catch (error) {
-        console.error('Batch registration error:', error);
-        showCustomAlert('Gagal terhubung ke server', 'error');
-        return {
-            success: false,
-            error: 'network_error'
-        };
+    const result = await apiCall({
+        type: 'BATCH_REGISTER',
+        adminUsername: currentUser.name,
+        adminPassword: adminPassword,
+        users: usersArray
+    });
+    
+    if (result.success) {
+        showCustomAlert(`Registrasi berhasil! ${result.successful} dari ${result.processed} user didaftarkan.`, 'success');
+    } else {
+        showCustomAlert(result.message || 'Gagal melakukan registrasi', 'error');
     }
+    
+    return result;
 }
 
 // ============================================
@@ -737,7 +668,6 @@ function showUploadProgress(title = 'Mengupload Data...') {
     turbine.classList.add('spinning');
     statusText.textContent = title;
     
-    // Reset steps
     document.querySelectorAll('.step').forEach((step, idx) => {
         step.classList.remove('active', 'completed');
         if (idx === 0) step.classList.add('active');
@@ -1524,9 +1454,6 @@ function goBack() {
 async function sendToSheet() {
     if (!requireAuth()) return;
     
-    const progress = showUploadProgress('Mengirim Logsheet...');
-    currentUploadController = new AbortController();
-    
     let allParameters = {};
     Object.entries(currentInput).forEach(([areaName, params]) => {
         Object.entries(params).forEach(([paramName, value]) => {
@@ -1541,32 +1468,18 @@ async function sendToSheet() {
         ...allParameters
     };
     
-    try {
-        await fetch(GAS_URL, {
-            method: 'POST',
-            mode: 'no-cors',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(finalData),
-            signal: currentUploadController.signal
-        });
-        
-        progress.complete();
+    const result = await apiCall(finalData, false);
+    
+    if (result.success) {
         showCustomAlert('✓ Data berhasil dikirim ke sistem!', 'success');
-        
         currentInput = {};
         localStorage.removeItem(DRAFT_KEYS.LOGSHEET);
-        
         setTimeout(() => navigateTo('homeScreen'), 1500);
-        
-    } catch (error) {
-        console.error('Error sending data:', error);
-        progress.error();
-        
+    } else {
         let offlineData = JSON.parse(localStorage.getItem(DRAFT_KEYS.LOGSHEET_OFFLINE) || '[]');
         offlineData.push(finalData);
         localStorage.setItem(DRAFT_KEYS.LOGSHEET_OFFLINE, JSON.stringify(offlineData));
-        
-        setTimeout(() => showCustomAlert('Gagal mengirim. Data disimpan lokal.', 'error'), 500);
+        showCustomAlert('Gagal mengirim. Data disimpan lokal.', 'error');
     }
 }
 
@@ -1722,16 +1635,10 @@ async function submitTPMData() {
         timestamp: new Date().toISOString()
     };
     
-    try {
-        await fetch(GAS_URL, {
-            method: 'POST',
-            mode: 'no-cors',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(tpmData)
-        });
-        
+    const result = await apiCall(tpmData, true);
+    
+    if (result.success) {
         progress.complete();
-        
         let tpmHistory = JSON.parse(localStorage.getItem(DRAFT_KEYS.TPM_HISTORY) || '[]');
         tpmHistory.push({...tpmData, photo: '[UPLOADED]'});
         localStorage.setItem(DRAFT_KEYS.TPM_HISTORY, JSON.stringify(tpmHistory));
@@ -1741,13 +1648,12 @@ async function submitTPMData() {
         currentTPMStatus = '';
         
         setTimeout(() => navigateTo('tpmScreen'), 1500);
-        
-    } catch (error) {
+    } else {
         progress.error();
         let offlineTPM = JSON.parse(localStorage.getItem(DRAFT_KEYS.TPM_OFFLINE) || '[]');
         offlineTPM.push(tpmData);
         localStorage.setItem(DRAFT_KEYS.TPM_OFFLINE, JSON.stringify(offlineTPM));
-        setTimeout(() => showCustomAlert('Gagal mengupload. Data disimpan lokal.', 'error'), 500);
+        showCustomAlert('Gagal mengupload. Data disimpan lokal.', 'error');
     }
 }
 
@@ -2305,22 +2211,18 @@ async function submitBalancingData() {
         type: 'BALANCING',
         Operator: currentUser ? currentUser.name : 'Unknown',
         Timestamp: new Date().toISOString(),
-        
         Tanggal: document.getElementById('balancingDate')?.value || '',
         Jam: document.getElementById('balancingTime')?.value || '',
         Shift: currentShift,
-        
         'Load_MW': parseFloat(document.getElementById('loadMW')?.value) || 0,
         'Ekspor_Impor_MW': eksporValue,
         'Ekspor_Impor_Status': eksporValue > 0 ? 'Impor' : (eksporValue < 0 ? 'Ekspor' : 'Netral'),
-        
         'PLN_MW': parseFloat(document.getElementById('plnMW')?.value) || 0,
         'UBB_MW': parseFloat(document.getElementById('ubbMW')?.value) || 0,
         'PIE_MW': parseFloat(document.getElementById('pieMW')?.value) || 0,
         'TG65_MW': parseFloat(document.getElementById('tg65MW')?.value) || 0,
         'TG66_MW': parseFloat(document.getElementById('tg66MW')?.value) || 0,
         'GTG_MW': parseFloat(document.getElementById('gtgMW')?.value) || 0,
-        
         'SS6500_MW': parseFloat(document.getElementById('ss6500MW')?.value) || 0,
         'SS2000_Via': document.getElementById('ss2000Via')?.value || 'TR-Main01',
         'Active_Power_MW': parseFloat(document.getElementById('activePowerMW')?.value) || 0,
@@ -2330,7 +2232,6 @@ async function submitBalancingData() {
         'HVS65_L02_MW': parseFloat(document.getElementById('hvs65l02MW')?.value) || 0,
         'HVS65_L02_Current_A': parseFloat(document.getElementById('hvs65l02Current')?.value) || 0,
         'Total_3B_MW': parseFloat(document.getElementById('total3BMW')?.value) || 0,
-        
         'Produksi_Steam_SA_t/h': parseFloat(document.getElementById('fq1105')?.value) || 0,
         'STG_Steam_t/h': parseFloat(document.getElementById('stgSteam')?.value) || 0,
         'PA2_Steam_t/h': parseFloat(document.getElementById('pa2Steam')?.value) || 0,
@@ -2344,7 +2245,6 @@ async function submitBalancingData() {
         'Total_Konsumsi_Steam_t/h': parseFloat(document.getElementById('totalKonsumsiSteam')?.textContent) || 0,
         'LPS_Balance_t/h': Math.abs(lpBalance),
         'LPS_Balance_Status': lpBalance < 0 ? 'Impor dari 3A' : 'Ekspor ke 3A',
-        
         'PI6122_kg/cm2': parseFloat(document.getElementById('pi6122')?.value) || 0,
         'TI6112_C': parseFloat(document.getElementById('ti6112')?.value) || 0,
         'TI6146_C': parseFloat(document.getElementById('ti6146')?.value) || 0,
@@ -2356,32 +2256,21 @@ async function submitBalancingData() {
         'CT_SU_Pompa': parseInt(document.getElementById('ctSuPompa')?.value) || 0,
         'CT_SA_Fan': parseInt(document.getElementById('ctSaFan')?.value) || 0,
         'CT_SA_Pompa': parseInt(document.getElementById('ctSaPompa')?.value) || 0,
-        
         'Kegiatan_Shift': document.getElementById('kegiatanShift')?.value || ''
     };
     
-    try {
-        progress.updateText('Menghitung ulang balance...');
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-        progress.updateText('Mengirim ke server...');
-        await fetch(GAS_URL, {
-            method: 'POST',
-            mode: 'no-cors',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(balancingData),
-            signal: currentUploadController.signal
-        });
-        
+    const result = await apiCall(balancingData, true);
+    
+    if (result.success) {
         progress.complete();
-        showCustomAlert('✓ Data Balancing berhasil dikirim!', 'success');
-        
         let balancingHistory = JSON.parse(localStorage.getItem(DRAFT_KEYS.BALANCING_HISTORY) || '[]');
         balancingHistory.push({
             ...balancingData,
             submittedAt: new Date().toISOString()
         });
         localStorage.setItem(DRAFT_KEYS.BALANCING_HISTORY, JSON.stringify(balancingHistory));
+        
+        showCustomAlert('✓ Data Balancing berhasil dikirim!', 'success');
         
         setTimeout(() => {
             const waMessage = encodeURIComponent(formatWhatsAppMessage(balancingData));
@@ -2390,15 +2279,12 @@ async function submitBalancingData() {
             navigateTo('homeScreen');
         }, 1000);
         
-    } catch (error) {
-        console.error('Balancing Error:', error);
+    } else {
         progress.error();
-        
         let offlineBalancing = JSON.parse(localStorage.getItem(DRAFT_KEYS.BALANCING_OFFLINE) || '[]');
         offlineBalancing.push(balancingData);
         localStorage.setItem(DRAFT_KEYS.BALANCING_OFFLINE, JSON.stringify(offlineBalancing));
-        
-        setTimeout(() => showCustomAlert('Gagal mengirim. Data disimpan lokal.', 'error'), 500);
+        showCustomAlert('Gagal mengirim. Data disimpan lokal.', 'error');
     }
 }
 
